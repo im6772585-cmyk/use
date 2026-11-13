@@ -130,7 +130,6 @@ const subwayLeg = (s1, s2) => {
   let km = 0; for (let i = 1; i < pts.length; i++) km += dist(pts[i - 1], pts[i]);
   return { mode: 'subway', geo: { type: 'LineString', coordinates: pts.map((q) => [q[1], q[0]]) }, stations: seq.map((x) => x.pos), km, min: stops * MIN_PER_STATION + SUBWAY_WAIT, wait: SUBWAY_WAIT, stops, from: s1, to: s2, label: `${s1.name} 승차 → ${s2.name} 하차 (${stops}정거장)` };
 };
-};
 
 function finish(p, band) {
   p.min = p.legs.reduce((a, l) => a + l.min, 0);
