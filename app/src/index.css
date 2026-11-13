@@ -413,3 +413,4 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .rent-now b { font-size: 20px; }
 .rent-now .warn { background: #111111; color: #FFD200; padding: 2px 8px; border-radius: 8px; }
 .rent-card .hist:first-of-type { border-top: 1px solid #EBEBEB; padding-top: 12px; margin-top: 8px; }
+.home-top + .toast, .toast { top: 186px; } .home-top .timer + * {} .screen:has(.home-top .timer) .toast { top: 250px; }
