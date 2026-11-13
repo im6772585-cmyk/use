@@ -487,3 +487,10 @@ body, .screen, .modal, .sheet { color: #0B2545; }
 .side-btn small, .nav-btn small, .st-fab small { font-size: 12px; font-weight: 800; }
 .leaflet-tooltip { font-size: 13px; font-weight: 700; color: #0B2545; }
 .leaflet-popup-content { color: #0B2545; }
+/* 지도에서 고른 곳 → 길찾기 */
+.target-card { position: absolute; left: 12px; right: 80px; bottom: 150px; z-index: 520; background: #FFFFFF; border: 2px solid #1E5AA8; border-radius: 16px; padding: 10px 10px 10px 14px; display: flex; align-items: center; gap: 8px; box-shadow: 0 3px 12px rgba(11,37,69,.2); }
+.tc-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.tc-txt b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-txt small { font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tc-go { flex: none; min-height: 44px; padding: 0 12px; border-radius: 12px; background: #1E5AA8; color: #FFFFFF; font-weight: 800; font-size: 14px; text-align: center; }
+.tc-x { flex: none; width: 36px; height: 44px; background: none; font-size: 18px; text-align: center; }

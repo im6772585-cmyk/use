@@ -485,6 +485,22 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
   const [picker, setPicker] = useState(false);
   const [sel, setSel] = useState(null);
   const [hideToast, setHideToast] = useState(false);
+  const [target, setTarget] = useState(null);
+  useEffect(() => {
+    const map = mapRef.current; if (!map) return;
+    const onClick = (e) => {
+      const pos = [e.latlng.lat, e.latlng.lng];
+      const st = nearest(TASHU, pos), sb = nearest(SUBWAY, pos);
+      const name = sb.d < 0.3 ? `${sb.name} 부근` : `${st.dong} ${st.d < 0.15 ? st.name : '부근'}`;
+      setTarget({ name, pos, st, sb }); setFollow(false);
+    };
+    map.on('click', onClick); return () => map.off('click', onClick);
+  }, [mapRef, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !target) return;
+    const m = L.marker(target.pos, { zIndexOffset: 1300, icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [30, 30], iconAnchor: [15, 28] }) }).addTo(map);
+    return () => m.remove();
+  }, [mapRef, target]);
   useEffect(() => { const t = setTimeout(() => setHideToast(true), 6000); return () => clearTimeout(t); }, []);
   useSelectedStation(mapRef, sel);
   useEffect(() => {
@@ -516,11 +532,19 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
 
       <button className="st-fab" onClick={() => { setFollow(false); setPicker(true); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#0B2545')} size={22} /><small>대여소</small></button>
       {sel && <button className="st-clear" onClick={() => setSel(null)}>{sel.name} ✕</button>}
+      {target ? (
+        <div className="target-card">
+          <div className="tc-txt"><b>{target.name}</b><small>가까운 대여소 {target.st.name} · {Math.round(target.st.d * 1000)}m</small></div>
+          <button className="tc-go" onClick={() => pick('to', { name: target.name, pos: target.pos })}>여기로 길찾기</button>
+          <button className="tc-x" onClick={() => setTarget(null)} aria-label="선택 취소">✕</button>
+        </div>
+      ) : (
       <button className="near-chip" onClick={() => { setFollow(false); if (xfer) setSel(xfer); else mapRef.current?.setView(sub.pos, 17); }}>
         <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
         <b>{sub.name}</b><span>{sub.d < 1 ? `${Math.round(sub.d * 1000)}m` : `${sub.d.toFixed(1)}km`}</span>
         {xfer && <em>환승 대여소 ›</em>}
       </button>
+      )}
       {picker && <StationPicker center={loc.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
 
       <nav className="bottom-bar">
