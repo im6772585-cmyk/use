@@ -211,18 +211,18 @@ function useMap(ref, center) {
     const addSubway = () => {
       if (glMap.getSource('subway')) return;
       glMap.addSource('subway', { type: 'geojson', data: { type: 'FeatureCollection', features: SUBWAY.map((st) => ({ type: 'Feature', properties: { name: st.name }, geometry: { type: 'Point', coordinates: [st.pos[1], st.pos[0]] } })) } });
-      glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 6, 15, 13], 'circle-color': C.K, 'circle-stroke-color': C.W, 'circle-stroke-width': 2.5 } });
+      glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 7, 14, 13], 'circle-color': C.K, 'circle-stroke-color': C.W, 'circle-stroke-width': 2 } });
       // 동그라미 안에 지하철 아이콘
       const img = new Image(48, 48);
       img.onload = () => {
         try {
           if (!glMap.hasImage('train')) glMap.addImage('train', img, { pixelRatio: 2 });
-          if (!glMap.getLayer('subway-icon')) glMap.addLayer({ id: 'subway-icon', type: 'symbol', source: 'subway', layout: { 'icon-image': 'train', 'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.45, 15, 0.95], 'icon-allow-overlap': true, 'icon-ignore-placement': true } }, 'subway-name');
+          if (!glMap.getLayer('subway-icon')) glMap.addLayer({ id: 'subway-icon', type: 'symbol', source: 'subway', layout: { 'icon-image': 'train', 'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.4, 14, 0.72], 'icon-allow-overlap': true, 'icon-ignore-placement': true } }, 'subway-name');
         } catch { /* 지도 준비 전이면 다음에 */ }
       };
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(trainSvg('#DDF159').replace('<svg ', '<svg width="48" height="48" '));
       glMap.addLayer({ id: 'subway-name', type: 'symbol', source: 'subway', minzoom: 12,
-        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.1, 'text-padding': 6, 'symbol-sort-key': 0 },
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.4, 'text-padding': 6, 'symbol-sort-key': 0 },
         paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } });
     };
     const tryAdd = () => { try { if (glMap.isStyleLoaded()) addSubway(); } catch { /* 다음 기회에 다시 */ } };
