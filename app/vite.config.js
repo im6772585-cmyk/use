@@ -2,6 +2,7 @@ import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
+  resolve: { alias: { 'maplibre-gl': '/src/maplibre-shim.js' } },
   plugins: [react()],
   base: './',
   server: {
