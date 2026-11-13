@@ -662,6 +662,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   // 출발·도착·시간대·자전거 기준이 바뀌면 세 경로 다시 계산
   const originKey = from ? from.pos.join() : 'here';
   const tripKeyRef = useRef('');
+  const userPickedRef = useRef(false); // 사용자가 직접 탭을 고른 경우에만 그 탭 유지
   useEffect(() => {
     if (!to || course) return;
     let alive = true;
@@ -673,7 +674,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       setPlans(ps);
       const tripKey = `${originKey}|${to.pos.join()}`;
       const fastest = ps.findIndex((x) => x.fastest);
-      setTab((t) => (tripKeyRef.current !== tripKey || ps[t]?.none ? fastest : t)); // 출발·도착이 바뀌면 가장 빠른 경로를 먼저
+      if (tripKeyRef.current !== tripKey) userPickedRef.current = false;
+      setTab((t) => (!userPickedRef.current || ps[t]?.none ? fastest : t)); // 기본은 항상 가장 빠른(추천) 경로
       tripKeyRef.current = tripKey;
       setLoading(false);
     });
@@ -899,7 +901,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                   {['대중교통+타슈', '대중교통', '타슈'].map((nm, i) => {
                     const pp = plans?.[i];
                     return (
-                      <button key={nm} aria-pressed={tab === i} disabled={!pp || pp.none} onClick={() => setTab(i)}>
+                      <button key={nm} aria-pressed={tab === i} disabled={!pp || pp.none} onClick={() => { userPickedRef.current = true; setTab(i); }}>
                         <span className="rt-name">{nm}</span>
                         <b>{loading || !pp ? '…' : pp.none ? '–' : `${pp.min}분`}</b>
                         <span className="rt-badges">{pp?.fastest && <i className="rec">추천 · 가장 빠름</i>}{pp?.greenest && !pp?.fastest && <i>탄소 최고</i>}</span>
