@@ -218,7 +218,7 @@ function useMap(ref, center) {
     };
     const tryAdd = () => { try { if (glMap.isStyleLoaded()) addSubway(); } catch { /* 다음 기회에 다시 */ } };
     tryAdd(); glMap.on('load', tryAdd); glMap.on('styledata', tryAdd); glMap.on('idle', tryAdd);
-    setTimeout(() => { if (!ok && !glMap.loaded()) box()?.classList.add('map-failed'); }, 20000);
+    setTimeout(() => { if (!ok && !glMap.loaded()) box()?.classList.add('map-failed'); }, 30000);
     mapRef.current = map; force((n) => n + 1);
     return () => map.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -239,8 +239,8 @@ function useMeMarker(mapRef, pos, follow) {
 function MapFail() {
   return (
     <div className="map-fail">
-      <b>지도를 불러오지 못했어요</b>
-      <p>인터넷 연결을 확인해 주세요.<br/>채팅 미리보기 창에서는 지도가 막혀 있어요.<br/>파일을 내려받아 <b>크롬</b>에서 열어 주세요.</p>
+      <b>지도를 불러오는 중이에요</b>
+      <p>지도 서버가 느리면 조금 걸릴 수 있어요.<br/>계속 안 보이면 인터넷 연결을 확인하고 새로고침해 주세요.</p>
     </div>
   );
 }
