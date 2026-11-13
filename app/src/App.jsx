@@ -275,20 +275,6 @@ function useStationLayers(mapRef, bus, onPick) {
     const map = mapRef.current;
     if (!map) return;
     const g = L.layerGroup().addTo(map);
-    const canvas = L.canvas({ padding: 0.3 });
-    // 일반 대여소: 지름 10px 노란 점 — 동네 단위로 확대했을 때(15 이상)만 보여서 지도가 복잡하지 않게
-    const stG = L.layerGroup();
-    TASHU.forEach((t) => {
-      if (TRANSFER_IDS.has(t.id)) return;
-      L.circleMarker(t.pos, { renderer: canvas, radius: 5, color: C.K, weight: 1, fillColor: C.Y, fillOpacity: 1 }).bindPopup(stationPopup(t), { maxWidth: 260 }).addTo(stG);
-    });
-    // 환승 대여소: 지름 20px 노란 원 + 자전거, 역과 점선 연결
-    TRANSFER.forEach(({ station, list }) => {
-      const t = list[0]; if (!t) return;
-      L.polyline([t.pos, station.pos], { color: C.K, weight: 2, dashArray: '2 5', interactive: false }).addTo(g);
-      L.marker(t.pos, { zIndexOffset: 500, icon: L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10], html: `<div class="mk mk-xfer">${bikeSvg('#111111')}</div>` }) })
-        .bindPopup(stationPopup(t), { maxWidth: 260 }).addTo(g);
-    });
     // 도시철도역: 지름 28px — 지도에서 가장 눈에 띄게
     SUBWAY.forEach((s) => {
       L.marker(s.pos, { zIndexOffset: 800, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: `<div class="mk mk-subway">${trainSvg()}</div><div class="lbl lbl-subway">${s.name}</div>` }) })
@@ -297,7 +283,7 @@ function useStationLayers(mapRef, bus, onPick) {
     // 버스정류장: 확대했을 때만 지름 14px
     const busG = L.layerGroup();
     bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${b.name}</div>` }) }).addTo(busG));
-    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); if (map.getZoom() >= 15) stG.addTo(g); else stG.remove(); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
+    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
     zoomCheck(); map.on('zoomend', zoomCheck);
     const onPop = (e) => {
       e.popup.getElement()?.querySelectorAll('button[data-act]').forEach((btn) => btn.addEventListener('click', () => {
@@ -309,6 +295,46 @@ function useStationLayers(mapRef, bus, onPick) {
     map.on('popupopen', onPop);
     return () => { map.off('zoomend', zoomCheck); map.off('popupopen', onPop); g.remove(); };
   }, [mapRef, bus, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// 고른 대여소 하나만 지도에 표시
+function useSelectedStation(mapRef, sel) {
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !sel) return;
+    const m = L.marker(sel.pos, { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [36, 44], iconAnchor: [18, 42], html: `<div class="st-pin">${bikeSvg('#111111')}</div>` }) })
+      .bindPopup(stationPopup(sel), { maxWidth: 260, offset: [0, -36] }).addTo(map);
+    map.setView(sel.pos, Math.max(map.getZoom(), 16));
+    setTimeout(() => m.openPopup(), 300);
+    return () => m.remove();
+  }, [mapRef, sel]);
+}
+
+// 대여소 목록: 가까운 순 + 이름 검색. 고르면 그 대여소만 지도에 표시
+function StationPicker({ center, onClose, onSelect }) {
+  const [q, setQ] = useState('');
+  const list = useMemo(() => {
+    const k = q.trim();
+    const base = k ? TASHU.filter((t) => t.name.includes(k) || t.dong.includes(k)) : TASHU.filter((t) => Math.abs(t.pos[0] - center[0]) < 0.02 && Math.abs(t.pos[1] - center[1]) < 0.025);
+    return base.map((t) => ({ ...t, d: dist(center, t.pos), xfer: TRANSFER_IDS.has(t.id) })).sort((a, b) => a.d - b.d).slice(0, 40);
+  }, [q, center]);
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal station-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><b>타슈 대여소</b><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
+        <input className="st-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="대여소 이름이나 동 이름으로 찾기" />
+        <small className="note">{q ? `검색 결과 ${list.length}곳` : '가까운 대여소부터 보여 드려요'} · 대전 전체 {TASHU.length.toLocaleString()}곳</small>
+        <div className="st-list">
+          {list.map((t) => (
+            <button key={t.id} className="ret-row" onClick={() => onSelect(t)}>
+              <span><b>{t.name}{t.xfer && <i className="xf-tag">환승</i>}</b><small>{t.dong} · {t.d < 1 ? `${Math.round(t.d * 1000)}m` : `${t.d.toFixed(1)}km`}</small></span><em>지도에서 보기</em>
+            </button>
+          ))}
+          {!list.length && <p className="note">찾는 대여소가 없어요.</p>}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------- 타슈 대여 (QR · 자전거 번호, 무료 59분) ----------
@@ -434,17 +460,13 @@ function Splash({ onDone }) {
   return (
     <div className="splash" onClick={onDone}>
       <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
-      <div className="splash-link">
-        <Icon svg={busSvg()} size={40} /><span className="arr">⇄</span><Icon svg={trainSvg('#111111')} size={40} /><span className="arr">⇄</span><Icon svg={bikeSvg('#111111')} size={40} />
-      </div>
       <h1>올라타슈 내려타슈</h1>
-      <p>버스·지하철 그리고 타슈</p>
     </div>
   );
 }
 
 // ---------- 홈 (지도) ----------
-function Home({ loc, go, band, setBand, rent, openRent, openReturn, pick }) {
+function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
   const [follow, setFollow] = useState(true);
@@ -452,6 +474,9 @@ function Home({ loc, go, band, setBand, rent, openRent, openReturn, pick }) {
   useMeMarker(mapRef, loc.pos, follow);
   useCongestion(mapRef, band);
   useStationLayers(mapRef, bus.list, pick);
+  const [picker, setPicker] = useState(false);
+  const [sel, setSel] = useState(null);
+  useSelectedStation(mapRef, sel);
   useEffect(() => {
     const m = mapRef.current; if (!m) return;
     const off = () => setFollow(false);
@@ -465,7 +490,7 @@ function Home({ loc, go, band, setBand, rent, openRent, openReturn, pick }) {
       <div ref={el} className="map" /><MapFail />
       <div className="home-top">
         <button className="search" onClick={() => go('route')}>
-          <span className="search-modes"><Icon svg={busSvg()} size={20} /><Icon svg={trainSvg('#111111')} size={20} /><Icon svg={bikeSvg('#111111')} size={20} /></span>
+          <span className="search-modes"><Icon svg={bikeSvg('#111111')} size={24} /></span>
           <span className="search-ph">어디로 갈까요?</span>
           <Icon svg={searchSvg()} size={22} />
         </button>
@@ -478,24 +503,19 @@ function Home({ loc, go, band, setBand, rent, openRent, openReturn, pick }) {
       {loc.error && <div className="toast">{loc.error}</div>}
       <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
-      <div className="link-card">
-        {!rent.rental && (
-          <button className="rent-btn" onClick={openRent}>
-            <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: qrSvg() }} />
-            <span><b>타슈 대여하기</b><small>QR 스캔 · 무료 59분</small></span>
-          </button>
-        )}
-        <button className="lc-main" onClick={() => mapRef.current?.setView(sub.pos, 17)}>
-          <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
-          <div><small>가까운 지하철 · 환승 대여소 {xfer ? xfer.name : '없음'}</small><b>{sub.name}</b></div>
-          <div className="lc-time"><b>타슈 {Math.max(1, Math.round(sub.d / 13 * 60))}분</b><small>{sub.d.toFixed(1)}km</small></div>
-        </button>
-      </div>
+      <button className="st-fab" onClick={() => { setFollow(false); setPicker(true); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#111111')} size={22} /><small>대여소</small></button>
+      {sel && <button className="st-clear" onClick={() => setSel(null)}>{sel.name} ✕</button>}
+      <button className="near-chip" onClick={() => { setFollow(false); if (xfer) setSel(xfer); else mapRef.current?.setView(sub.pos, 17); }}>
+        <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
+        <b>{sub.name}</b><span>{sub.d < 1 ? `${Math.round(sub.d * 1000)}m` : `${sub.d.toFixed(1)}km`}</span>
+        {xfer && <em>환승 대여소 ›</em>}
+      </button>
+      {picker && <StationPicker center={loc.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
 
       <nav className="bottom-bar">
         <button className="side-btn" onClick={() => go('badges')}><Icon svg={medalSvg()} size={24} /><small>배지</small></button>
         <button className="nav-btn" onClick={() => go('route')} aria-label="길찾기">
-          <span className="nav-ico"><Icon svg={bikeSvg('#111111')} size={30} /><Icon svg={trainSvg('#FFD200')} size={18} className="nav-train" /></span><small>길찾기</small>
+          <span className="nav-arrow">➤</span><small>길찾기</small>
         </button>
         <button className="side-btn" onClick={() => go('my')}><Icon svg={personSvg()} size={24} /><small>MY</small></button>
       </nav>
@@ -562,7 +582,10 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
 
   useMeMarker(mapRef, loc.pos, !!guide || riding);
   useCongestion(mapRef, band, !!plans || !!course);
-  useStationLayers(mapRef, bus.list, (act, place) => { if (act === 'from') setFrom(place); else setTo(place); setEditing(null); });
+  useStationLayers(mapRef, bus.list, (act, place) => { if (act === 'from') setFrom(place); else setTo(place); setEditing(null); setSel(null); });
+  const [picker, setPicker] = useState(false);
+  const [sel, setSel] = useState(null);
+  useSelectedStation(mapRef, sel);
 
   // 지도를 눌러 목적지 정하기
   useEffect(() => {
@@ -687,6 +710,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       )}
       {!guide && !course && !editing && <div className="route-band"><BandBar band={band} setBand={setBand} compact /></div>}
       {!guide && <div className="route-timer"><RentTimer rent={rent} onReturn={openReturn} /></div>}
+      {!guide && !editing && !course && <button className="st-fab route-st" onClick={() => setPicker(true)} aria-label="대여소 보기"><Icon svg={bikeSvg('#111111')} size={22} /><small>대여소</small></button>}
+      {picker && <StationPicker center={to ? to.pos : origin.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
 
       {editing && !guide && (
         <div className="search-sheet">
@@ -725,7 +750,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                   </div>
                 ) : (
                   <>
-                    <button className="cc-btn" onClick={() => { setRiding(true); if (!rent.rental) openRent(); mapRef.current?.setView(course.pts[0], 16); }}>코스 시작하기</button>
+                    <button className="cc-btn" onClick={() => { setRiding(true); mapRef.current?.setView(course.pts[0], 16); }}>코스 시작하기</button>
                     <button className="cc-btn ghost" onClick={() => { setCourse(null); if (layerRef.current) layerRef.current.remove(); }}>일반 길찾기로</button>
                   </>
                 )}
@@ -830,10 +855,7 @@ function MyInfo({ back, rent, openRent, openReturn }) {
               <button className="cc-btn" onClick={openReturn}>가까운 대여소에 반납</button>
             </>
           ) : (
-            <>
-              <p className="note">지금 빌린 타슈가 없어요.</p>
-              <button className="cc-btn" onClick={openRent}>타슈 대여하기</button>
-            </>
+            <p className="note">지금 빌린 타슈가 없어요.</p>
           )}
           {rent.history.length > 0 && rent.history.slice(0, 3).map((h) => (
             <div className="hist" key={h.start}><span>{h.bike} → {h.station} 반납</span><small>{new Date(h.start).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} · {Math.max(1, Math.round((h.end - h.start) / 60000))}분</small></div>
@@ -907,7 +929,7 @@ export default function App() {
   return (
     <div className="phone">
       {screen === 'splash' && <Splash onDone={home} />}
-      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} pick={pick} />}
+      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} rent={rent} openReturn={() => setModal('return')} pick={pick} />}
       {screen === 'route' && <RouteScreen key={`${courseId}-${trip?.from?.name}-${trip?.to?.name}`} loc={loc} back={home} band={band} setBand={setBand} initialCourse={courseId} trip={trip} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} />}
       {screen === 'badges' && <BadgeScreen back={home} openCourse={openCourse} />}
       {screen === 'my' && <MyInfo back={home} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} />}
