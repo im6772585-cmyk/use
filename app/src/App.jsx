@@ -5,7 +5,7 @@ import { bikeSvg, myLocationHtml } from './rider.js';
 
 const DAEJEON_CENTER = [36.3504, 127.3845]; // 대전시청
 const DAEJEON_BBOX = '36.20,127.25,36.50,127.50';
-const OVERPASS = 'https://overpass-api.de/api/interpreter';
+const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
 
 const DESTINATIONS = [
   { name: '대전역', pos: [36.3326, 127.4342] },
@@ -17,8 +17,18 @@ const DESTINATIONS = [
   { name: '유성온천역', pos: [36.3538, 127.3418] },
 ];
 
-const SPEED = { bike: 15, walk: 4.5, subway: 33 }; // km/h
+const SPEED = { bike: 15, walk: 4.5 }; // km/h
 const SUBWAY_WAIT_MIN = 4;
+const MIN_PER_STATION = 2;
+// 대전 도시철도 1호선 (판암 → 반석 순서). 좌표 출처: Wikidata
+const SUBWAY = [
+  ['판암역', 36.3169, 127.458], ['신흥역', 36.3196, 127.449], ['대동역', 36.3295, 127.443], ['대전역', 36.3313, 127.433],
+  ['중앙로역', 36.3286, 127.426], ['중구청역', 36.3249, 127.42], ['서대전네거리역', 36.3224, 127.413], ['오룡역', 36.3283, 127.405],
+  ['용문역', 36.3382, 127.393], ['탄방역', 36.3454, 127.385], ['시청역', 36.3514, 127.387], ['정부청사역', 36.3577, 127.381],
+  ['갈마역', 36.3575, 127.373], ['월평역', 36.3583, 127.364], ['갑천역', 36.3542, 127.355], ['유성온천역', 36.3537, 127.341],
+  ['구암역', 36.3566, 127.331], ['현충원역', 36.359, 127.321], ['월드컵경기장역', 36.3669, 127.318], ['노은역', 36.3741, 127.318],
+  ['지족역', 36.3841, 127.32], ['반석역', 36.3921, 127.315],
+].map(([name, lat, lon], i) => ({ name, pos: [lat, lon], idx: i }));
 const dist = (a, b) => L.latLng(a).distanceTo(L.latLng(b)) / 1000; // km
 const mins = (km, kmh) => Math.max(1, Math.round((km / kmh) * 60));
 
@@ -84,17 +94,6 @@ function WeatherChip({ pos }) {
 }
 
 // ---------- 대중교통 + 타슈 데이터 (OpenStreetMap) ----------
-const allSubwayCache = { p: null };
-function loadAllSubway() {
-  if (!allSubwayCache.p) {
-    const q = `[out:json][timeout:25];(node["railway"="station"]["station"="subway"](${DAEJEON_BBOX});node["public_transport"="station"]["subway"="yes"](${DAEJEON_BBOX}););out body;`;
-    allSubwayCache.p = fetch(OVERPASS, { method: 'POST', body: 'data=' + encodeURIComponent(q) })
-      .then((r) => r.json())
-      .then((j) => dedupe(j.elements.map((e) => ({ name: (e.tags.name || '역').replace(/역$/, '') + '역', pos: [e.lat, e.lon] }))))
-      .catch(() => { allSubwayCache.p = null; return []; });
-  }
-  return allSubwayCache.p;
-}
 function dedupe(list) {
   const seen = new Map();
   for (const s of list) if (!seen.has(s.name)) seen.set(s.name, s);
@@ -103,8 +102,15 @@ function dedupe(list) {
 async function loadNearby(center) {
   const [lat, lon] = center;
   const q = `[out:json][timeout:20];(node["amenity"="bicycle_rental"](around:1500,${lat},${lon});node["highway"="bus_stop"](around:900,${lat},${lon}););out body;`;
-  const r = await fetch(OVERPASS, { method: 'POST', body: 'data=' + encodeURIComponent(q) });
-  const j = await r.json();
+  let j = null;
+  for (const url of OVERPASS) {
+    try {
+      const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), signal: AbortSignal.timeout(9000) });
+      const t = await r.text();
+      if (t.startsWith('{')) { j = JSON.parse(t); break; }
+    } catch { /* 다음 서버 시도 */ }
+  }
+  if (!j) throw new Error('overpass unavailable');
   const tashu = [], bus = [];
   for (const e of j.elements) {
     const item = { name: e.tags.name || (e.tags.amenity ? '타슈 대여소' : '버스정류장'), pos: [e.lat, e.lon] };
@@ -115,13 +121,13 @@ async function loadNearby(center) {
 const nearest = (list, p) => list.reduce((best, s) => { const d = dist(p, s.pos); return !best || d < best.d ? { ...s, d } : best; }, null);
 
 function useTransit(center) {
-  const [data, setData] = useState({ subway: [], tashu: [], bus: [], loaded: false, failed: false });
+  const [data, setData] = useState({ subway: SUBWAY, tashu: [], bus: [], loaded: false, failed: false });
   const key = `${center[0].toFixed(3)},${center[1].toFixed(3)}`;
   useEffect(() => {
     let alive = true;
     const [lat, lon] = key.split(',').map(Number);
-    Promise.all([loadAllSubway(), loadNearby([lat, lon])])
-      .then(([subway, n]) => alive && setData({ subway, ...n, loaded: true, failed: false }))
+    loadNearby([lat, lon])
+      .then((n) => alive && setData({ subway: SUBWAY, ...n, loaded: true, failed: false }))
       .catch(() => alive && setData((d) => ({ ...d, loaded: true, failed: true })));
     return () => { alive = false; };
   }, [key]);
@@ -245,7 +251,7 @@ function Home({ loc, go }) {
 
       {/* 연계 카드: 지하철(가장 크게) > 타슈 > 버스 */}
       <div className="link-card">
-        {!transit.loaded ? <div className="lc-loading">주변 대중교통·타슈 찾는 중…</div> : transit.failed ? <div className="lc-loading">주변 정보를 불러오지 못했어요</div> : (
+        {(
           <>
             <button className="lc-main" onClick={() => focus(sub)}>
               <span className="lc-ico subway">🚇</span>
@@ -255,11 +261,11 @@ function Home({ loc, go }) {
             <div className="lc-row">
               <button className="lc-sub" onClick={() => focus(tashu)}>
                 <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: bikeSvg('#fff') }} />
-                <div><small>타슈 대여소</small><b>{tashu ? `도보 ${mins(tashu.d, SPEED.walk)}분` : '정보 없음'}</b></div>
+                <div><small>타슈 대여소</small><b>{tashu ? `도보 ${mins(tashu.d, SPEED.walk)}분` : !transit.loaded ? '찾는 중…' : transit.failed ? '잠시 후 다시' : '근처 없음'}</b></div>
               </button>
               <button className="lc-mini" onClick={() => focus(bus)}>
                 <span className="lc-ico bus" />
-                <div><small>버스</small><b>{bus ? `${Math.round(bus.d * 1000)}m` : '–'}</b></div>
+                <div><small>버스</small><b>{bus ? `${Math.round(bus.d * 1000)}m` : !transit.loaded ? '…' : '–'}</b></div>
               </button>
             </div>
           </>
@@ -322,16 +328,16 @@ function RouteScreen({ loc, back }) {
       title: '타슈만 타기', exact: bikeOnly.exact, dest: d.pos,
       legs: [{ mode: 'bike', geo: bikeOnly.geo, min: mins(bikeOnly.km, SPEED.bike), label: `타슈 ${bikeOnly.km.toFixed(1)}km` }],
     }];
-    const subway = transit.subway.length ? transit.subway : await loadAllSubway();
-    const s1 = nearest(subway, me), s2 = nearest(subway, d.pos);
+    const s1 = nearest(SUBWAY, me), s2 = nearest(SUBWAY, d.pos);
     if (s1 && s2 && s1.name !== s2.name && s1.d < 3 && s2.d < 1.5) {
       const b1 = await bikeRoute(me, s1.pos);
-      const subKm = dist(s1.pos, s2.pos) * 1.15;
+      const stops = Math.abs(s1.idx - s2.idx);
+      const lineCoords = SUBWAY.slice(Math.min(s1.idx, s2.idx), Math.max(s1.idx, s2.idx) + 1).map((s) => [s.pos[1], s.pos[0]]);
       options.push({
         title: '타슈 + 지하철', exact: b1.exact, dest: d.pos,
         legs: [
           { mode: 'bike', geo: b1.geo, min: mins(b1.km, SPEED.bike), label: `타슈 → ${s1.name}` },
-          { mode: 'subway', geo: { type: 'LineString', coordinates: [[s1.pos[1], s1.pos[0]], [s2.pos[1], s2.pos[0]]] }, min: mins(subKm, SPEED.subway) + SUBWAY_WAIT_MIN, label: `지하철 ${s1.name} → ${s2.name}` },
+          { mode: 'subway', geo: { type: 'LineString', coordinates: lineCoords }, min: stops * MIN_PER_STATION + SUBWAY_WAIT_MIN, label: `지하철 ${s1.name} → ${s2.name} (${stops}정거장)` },
           { mode: 'walk', geo: { type: 'LineString', coordinates: [[s2.pos[1], s2.pos[0]], [d.pos[1], d.pos[0]]] }, min: mins(s2.d * 1.25, SPEED.walk), label: `도보 → ${d.name}` },
         ],
       });
