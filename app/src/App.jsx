@@ -799,9 +799,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
           <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#15273E')} size={guideMin ? 22 : 32} />
           <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.title}</b>
             {!guideMin && <span className="g-sub">{curStep.sub}</span>}
-            {!guideMin && guide.steps[guide.i + 1] && guide.steps[guide.i + 1].mode !== curStep.mode && <em>다음: {MODE_NM[guide.steps[guide.i + 1].mode]}(으)로 갈아타기</em>}
           </div>
-          {!guideMin && <button onClick={next}>다음</button>}
           <button className="g-fold" onClick={() => setGuideMin((v) => !v)} aria-label={guideMin ? '안내 펼치기' : '안내 접기'}>{guideMin ? '▾' : '▴'}</button>
         </div>
       ) : course ? (
