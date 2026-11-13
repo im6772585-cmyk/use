@@ -244,3 +244,5 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .won b { font-size: 16px; }
 .won small { font-size: 12px; }
 .mk-tashu { width: 22px; height: 22px; padding: 2px; }
+.sheet > * { flex-shrink: 0; }
+.crs svg, .cc-head svg { flex: none; }

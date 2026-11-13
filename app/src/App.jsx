@@ -488,7 +488,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse }) {
     const line = L.polyline(c.pts, { color: C.Y, weight: 6, lineJoin: 'round' }).addTo(g);
     c.pts.forEach((p, i) => L.circleMarker(p, { radius: 3, color: C.K, weight: 1.5, fillColor: C.W, fillOpacity: 1 }).bindTooltip(c.names[i] || '', { direction: 'top' }).addTo(g));
     L.marker(c.pts[0], { icon: L.divIcon({ className: '', html: '<div class="start-pin">출발</div>', iconSize: [40, 22], iconAnchor: [20, 30] }) }).addTo(g);
-    map.fitBounds(line.getBounds(), { padding: [50, 50], paddingBottomRight: [30, 320] });
+    map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 150], paddingBottomRight: [30, 430] });
   }, [mapRef]);
   useEffect(() => {
     if (initialCourse && mapRef.current) showCourse(COURSES.find((c) => c.id === initialCourse));
