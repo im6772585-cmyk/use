@@ -276,10 +276,11 @@ function useStationLayers(mapRef, bus, onPick) {
     if (!map) return;
     const g = L.layerGroup().addTo(map);
     const canvas = L.canvas({ padding: 0.3 });
-    // 일반 대여소: 지름 10px 노란 점
+    // 일반 대여소: 지름 10px 노란 점 — 동네 단위로 확대했을 때(15 이상)만 보여서 지도가 복잡하지 않게
+    const stG = L.layerGroup();
     TASHU.forEach((t) => {
       if (TRANSFER_IDS.has(t.id)) return;
-      L.circleMarker(t.pos, { renderer: canvas, radius: 5, color: C.K, weight: 1, fillColor: C.Y, fillOpacity: 1 }).bindPopup(stationPopup(t), { maxWidth: 260 }).addTo(g);
+      L.circleMarker(t.pos, { renderer: canvas, radius: 5, color: C.K, weight: 1, fillColor: C.Y, fillOpacity: 1 }).bindPopup(stationPopup(t), { maxWidth: 260 }).addTo(stG);
     });
     // 환승 대여소: 지름 20px 노란 원 + 자전거, 역과 점선 연결
     TRANSFER.forEach(({ station, list }) => {
@@ -296,7 +297,7 @@ function useStationLayers(mapRef, bus, onPick) {
     // 버스정류장: 확대했을 때만 지름 14px
     const busG = L.layerGroup();
     bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${b.name}</div>` }) }).addTo(busG));
-    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
+    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); if (map.getZoom() >= 15) stG.addTo(g); else stG.remove(); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
     zoomCheck(); map.on('zoomend', zoomCheck);
     const onPop = (e) => {
       e.popup.getElement()?.querySelectorAll('button[data-act]').forEach((btn) => btn.addEventListener('click', () => {
