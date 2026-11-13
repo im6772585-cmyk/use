@@ -582,17 +582,24 @@ function ModeBar({ legs }) {
 }
 function stepsOf(p) {
   const s = [];
+  const m = (km) => (km < 1 ? `${Math.round(km * 100) * 10}m` : `${km.toFixed(1)}km`);
   for (const l of p.legs) {
-    if (l.mode === 'walk') s.push({ mode: 'walk', text: `${l.label} · ${l.min}분`, to: l.geo.coordinates.at(-1) });
-    if (l.mode === 'subway') { s.push({ mode: 'subway', text: `${l.from.name} 승차 (${l.to.idx < l.from.idx ? '판암' : '반석'} 방면 · 대기 약 ${l.wait}분)`, to: [l.from.pos[1], l.from.pos[0]] }); s.push({ mode: 'subway', text: `${l.to.name} 하차 · ${l.stops}정거장`, to: [l.to.pos[1], l.to.pos[0]] }); }
-    if (l.mode === 'bus') s.push({ mode: 'bus', text: l.label, to: l.geo.coordinates.at(-1) });
+    if (l.mode === 'walk') {
+      const tgt = l.label.replace(/까지 걷기.*$/, '').replace(/ 개찰구까지$/, '').replace(/ 환승 대여소까지$/, '');
+      s.push({ mode: 'walk', title: l.label.includes('목적지') ? '목적지까지 걷기' : `${tgt}까지 걷기`, sub: `${l.min}분${l.km > 0.05 ? ` · ${m(l.km)}` : ''}`, to: l.geo.coordinates.at(-1) });
+    }
+    if (l.mode === 'subway') {
+      s.push({ mode: 'subway', title: `${l.from.name} 승차`, sub: `${l.to.idx < l.from.idx ? '판암' : '반석'} 방면 · 대기 약 ${l.wait}분`, to: [l.from.pos[1], l.from.pos[0]] });
+      s.push({ mode: 'subway', title: `${l.to.name} 하차`, sub: `${l.stops}정거장 · ${l.min - l.wait}분`, to: [l.to.pos[1], l.to.pos[0]] });
+    }
+    if (l.mode === 'bus') s.push({ mode: 'bus', title: `시내버스 ${l.min - l.wait}분`, sub: `정류장 대기 약 ${l.wait}분 · 도로 혼잡도로 추정한 시간`, to: l.geo.coordinates.at(-1) });
     if (l.mode === 'bike') {
-      if (l.rent) s.push({ mode: 'bike', text: `${l.rent.name} 대여소에서 타슈 대여`, to: [l.rent.pos[1], l.rent.pos[0]] });
-      s.push({ mode: 'bike', text: `${l.min}분 주행 · ${l.km.toFixed(1)}km${l.congKm >= 0.05 ? ` (혼잡 도로 ${l.congKm.toFixed(1)}km)` : ''}`, to: l.geo.coordinates.at(-1) });
-      if (l.ret) s.push({ mode: 'bike', text: `${l.ret.name} 대여소에 반납`, to: [l.ret.pos[1], l.ret.pos[0]] });
+      if (l.rent) s.push({ mode: 'bike', title: '타슈 대여', sub: l.rent.name, to: [l.rent.pos[1], l.rent.pos[0]] });
+      s.push({ mode: 'bike', title: `타슈 주행 ${l.min}분`, sub: `${m(l.km)}${l.congKm >= 0.05 ? ` · 혼잡 도로 ${m(l.congKm)} 지남` : ' · 혼잡 도로 없음'}`, to: l.geo.coordinates.at(-1) });
+      if (l.ret) s.push({ mode: 'bike', title: '타슈 반납', sub: l.ret.name, to: [l.ret.pos[1], l.ret.pos[0]] });
     }
   }
-  return s;
+  return s.map((x) => ({ ...x, text: `${x.title} · ${x.sub}` }));
 }
 
 function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, openRent, openReturn }) {
@@ -608,6 +615,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [plans, setPlans] = useState(null);
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [planErr, setPlanErr] = useState(false);
+  const [retry, setRetry] = useState(0);
   const [guide, setGuide] = useState(null); // { steps, i }
   const [arrived, setArrived] = useState(false);
   const [course, setCourse] = useState(null);
@@ -637,8 +646,10 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
     if (!to || course) return;
     let alive = true;
     setLoading(true);
-    planAll(origin.pos, to.pos, band, bikeMode).then((ps) => {
+    setPlanErr(false);
+    planAll(origin.pos, to.pos, band, bikeMode).catch(() => null).then((ps) => {
       if (!alive) return;
+      if (!ps) { setPlanErr(true); setLoading(false); return; }
       setPlans(ps);
       const tripKey = `${originKey}|${to.pos.join()}`;
       const fastest = ps.findIndex((x) => x.fastest);
@@ -647,7 +658,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       setLoading(false);
     });
     return () => { alive = false; };
-  }, [to, originKey, band, bikeMode, course]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [to, originKey, band, bikeMode, course, retry]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 고른 경로만 굵게, 나머지는 흐리게
   useEffect(() => {
@@ -727,7 +738,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       {guide ? (
         <div className={`guide-card g-${curStep.mode}`}>
           <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#15273E')} size={32} />
-          <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.text}</b>
+          <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.title}</b><span className="g-sub">{curStep.sub}</span>
             {guide.steps[guide.i + 1] && guide.steps[guide.i + 1].mode !== curStep.mode && <em>다음: {MODE_NM[guide.steps[guide.i + 1].mode]}(으)로 갈아타기</em>}
           </div>
           <button onClick={next}>다음</button>
@@ -803,14 +814,16 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                     const pp = plans?.[i];
                     return (
                       <button key={nm} aria-pressed={tab === i} disabled={!pp || pp.none} onClick={() => setTab(i)}>
-                        <span className="rt-name">{nm}{i === 0 && <em>추천</em>}</span>
+                        <span className="rt-name">{nm}</span>
                         <b>{loading || !pp ? '…' : pp.none ? '–' : `${pp.min}분`}</b>
-                        <span className="rt-badges">{pp?.fastest && <i>가장 빠름</i>}{pp?.greenest && <i>탄소 최고</i>}</span>
+                        <span className="rt-badges">{pp?.fastest && <i className="rec">추천 · 가장 빠름</i>}{pp?.greenest && !pp?.fastest && <i>탄소 최고</i>}</span>
                       </button>
                     );
                   })}
                 </div>
               )}
+              {to && loading && <div className="route-loading"><i /><span>세 가지 경로를 계산하고 있어요…</span></div>}
+              {to && planErr && <div className="route-info"><b>경로를 불러오지 못했어요</b><button className="cc-btn" onClick={() => setRetry((r) => r + 1)}>다시 시도</button></div>}
               {to && p?.none && <div className="route-info"><small>{p.why}</small></div>}
               {to && p && !p.none && !loading && (
                 <div className="plan-detail">
@@ -821,12 +834,21 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                   )}
                   <ModeBar legs={p.legs} />
                   <div className="pd-sum"><span className="big">{p.min}분</span><span className="arrive">{hhmm(p.arrive)} 도착</span></div>
-                  <div className="pd-meta">
-                    <span>환승 {p.transfers}회</span><span>걷기 {p.walkM}m</span>
-                    <span>{['출근', '퇴근', '평시'][band]} 혼잡 도로 {p.congKm >= 0.05 ? `${p.congKm.toFixed(1)}km` : '없음'}</span>
-                    {p.bikeKm > 0 ? <><span>타슈 {p.bikeKm.toFixed(1)}km</span><span>{p.kcal}kcal</span><span>탄소 {p.co2.toLocaleString()}g 감축</span></> : <span>탄소 감축 0g (타슈 구간 없음)</span>}
+                  <div className="pd-stats">
+                    <div><small>환승</small><b>{p.transfers}회</b></div>
+                    <div><small>걷기</small><b>{p.walkM >= 1000 ? `${(p.walkM / 1000).toFixed(1)}km` : `${p.walkM}m`}</b></div>
+                    <div><small>{['출근', '퇴근', '평시'][band]} 혼잡 도로</small><b>{p.congKm >= 0.05 ? `${p.congKm.toFixed(1)}km` : '없음'}</b></div>
+                    <div><small>타슈 거리</small><b>{p.bikeKm > 0 ? `${p.bikeKm.toFixed(1)}km` : '–'}</b></div>
+                    <div><small>소모 칼로리</small><b>{p.bikeKm > 0 ? `${p.kcal}kcal` : '–'}</b></div>
+                    <div><small>탄소 감축</small><b>{p.co2 > 0 ? `${p.co2.toLocaleString()}g` : '–'}</b></div>
                   </div>
-                  <ol className="steps">{steps.map((s, i) => <li key={i}><Icon svg={MODE_ICON[s.mode]('#15273E')} size={18} className={`st-${s.mode}`} />{s.text}</li>)}</ol>
+                  <ol className="timeline">{steps.map((st, i) => (
+                    <li key={i} className={`tl-${st.mode}`}>
+                      <span className="tl-num">{i + 1}</span>
+                      <Icon svg={MODE_ICON[st.mode]('#15273E')} size={22} className="tl-ico" />
+                      <span className="tl-txt"><b>{st.title}</b><small>{st.sub}</small></span>
+                    </li>
+                  ))}</ol>
                   <button className="cc-btn" onClick={() => { setGuide({ steps, i: 0 }); setArrived(false); mapRef.current?.setView(origin.pos, 17); }}>안내 시작</button>
                   <small className="note">{p.legs.some((l) => l.exact === false) ? '일부 구간은 경로 서버에 연결하지 못해 직선으로 표시했어요. ' : ''}{p.legs.some((l) => l.mode === 'bus') ? '버스 시간은 도로 혼잡도로 추정한 값이에요. ' : ''}{p.legs.some((l) => l.mode === 'subway') ? '지하철은 한 정거장 2분 + 대기 4분으로 계산했어요.' : ''}</small>
                 </div>

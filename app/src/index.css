@@ -540,3 +540,30 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .lc-ico.subway { background: #15273E; }
 .mk-bus { border-color: #305A52; }
 .xfer-pt { border-color: #15273E; color: #15273E; }
+
+/* ===== v8: 경로 정보 가독성 ===== */
+.pd-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.pd-stats div { background: #F8F8F0; border: 1px solid #EEEEDD; border-radius: 12px; padding: 8px 10px; display: flex; flex-direction: column; gap: 2px; }
+.pd-stats small { font-size: 12px; color: #305A52 !important; font-weight: 700; }
+.pd-stats b { font-size: 17px; color: #15273E; }
+.timeline { list-style: none; margin: 4px 0 0; padding: 0; display: flex; flex-direction: column; }
+.timeline li { position: relative; display: flex; align-items: center; gap: 10px; padding: 10px 0 10px 0; }
+.timeline li + li { border-top: 1px solid #EEEEDD; }
+.tl-num { flex: none; width: 24px; height: 24px; border-radius: 50%; background: #15273E; color: #FFFFFF; font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.tl-ico { flex: none; width: 34px !important; height: 34px !important; border-radius: 10px; padding: 6px; background: #F8F8F0; }
+.tl-bike .tl-ico { background: #A5C04D; }
+.tl-subway .tl-ico { background: #15273E; }
+.tl-subway .tl-ico svg * { stroke: #DDF159; fill: none; }
+.tl-subway .tl-ico svg circle { fill: #DDF159; }
+.tl-bus .tl-ico { background: #305A52; }
+.tl-bus .tl-ico svg * { stroke: #FFFFFF; }
+.tl-bus .tl-ico svg circle { fill: #FFFFFF; }
+.tl-txt { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.tl-txt b { font-size: 16px; color: #15273E; line-height: 1.3; }
+.tl-txt small { font-size: 13px; color: #305A52 !important; line-height: 1.35; }
+.rt-badges i.rec { background: #305A52 !important; color: #FFFFFF !important; }
+.g-sub { font-size: 14px; font-weight: 600; opacity: .9; }
+.route-loading { display: flex; align-items: center; gap: 10px; font-size: 15px; font-weight: 700; padding: 8px 2px; }
+.route-loading i { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #EEEEDD; border-top-color: #305A52; animation: spin .8s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+.route-info { gap: 8px; }
