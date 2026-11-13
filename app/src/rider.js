@@ -1,5 +1,5 @@
 // 타슈 자전거 아이콘 (캐릭터 없음)
-export const bikeSvg = (color = '#2fa84f') => `
+export const bikeSvg = (color = '#111111') => `
 <svg viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg">
   <circle cx="13" cy="31" r="8" fill="none" stroke="${color}" stroke-width="3.2"/>
   <circle cx="35" cy="31" r="8" fill="none" stroke="${color}" stroke-width="3.2"/>
@@ -10,5 +10,5 @@ export const bikeSvg = (color = '#2fa84f') => `
 export const myLocationHtml = (size = 44) => `
 <div class="me" style="width:${size}px;height:${size}px">
   <div class="me-pulse"></div>
-  <div class="me-dot">${bikeSvg('#ffffff')}</div>
+  <div class="me-dot">${bikeSvg('#111111')}</div>
 </div>`;

@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import 'maplibre-gl/dist/maplibre-gl.css';
+import '@maplibre/maplibre-gl-leaflet';
+import { mapStyle, C } from './mapStyle.js';
 import { bikeSvg, myLocationHtml } from './rider.js';
 
 const DAEJEON_CENTER = [36.3504, 127.3845]; // 대전시청
@@ -139,7 +142,7 @@ const icons = {
   subway: (name) => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
     html: `<div class="mk mk-subway">🚇</div><div class="lbl lbl-subway">${name}</div>` }),
   tashu: (name) => L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
-    html: `<div class="mk mk-tashu">${bikeSvg('#ffffff')}</div><div class="lbl lbl-tashu">${name}</div>` }),
+    html: `<div class="mk mk-tashu">${bikeSvg('#111111')}</div><div class="lbl lbl-tashu">${name}</div>` }),
   bus: (name) => L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6],
     html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${name}</div>` }),
 };
@@ -169,22 +172,12 @@ function useMap(ref, center) {
   useEffect(() => {
     const map = L.map(ref.current, { zoomControl: false }).setView(center, 16);
     // 밝고 차분한 지도 스타일 (CARTO Voyager)
-    // 1순위 OpenStreetMap(한글 지명) + 부드러운 색 보정, 실패하면 Esri 회색 지도로 자동 전환
-    let errors = 0, loaded = 0, switched = false;
+    // 노랑·검정·흰색 3색 벡터 지도 (OpenFreeMap, 한글 지명)
     const box = () => ref.current?.parentElement;
-    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      maxZoom: 19, attribution: '© OpenStreetMap', className: 'soft-tiles',
-    }).addTo(map);
-    osm.on('tileload', () => { loaded++; box()?.classList.remove('map-failed'); });
-    osm.on('tileerror', () => {
-      if (++errors < 4 || loaded || switched) return;
-      switched = true; osm.remove();
-      const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: '© Esri' }).addTo(map);
-      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(map);
-      let ok = false; esri.on('tileload', () => { ok = true; box()?.classList.remove('map-failed'); });
-      setTimeout(() => { if (!ok) box()?.classList.add('map-failed'); }, 6000);
-    });
-    setTimeout(() => { if (!loaded && !switched) box()?.classList.add('map-failed'); }, 8000);
+    const gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" }).addTo(map);
+    let ok = false;
+    gl.getMaplibreMap().once('idle', () => { ok = true; box()?.classList.remove('map-failed'); });
+    setTimeout(() => { if (!ok) box()?.classList.add('map-failed'); }, 12000);
     mapRef.current = map; force((n) => n + 1);
     return () => map.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -216,7 +209,7 @@ function Splash({ onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 2000); return () => clearTimeout(t); }, [onDone]);
   return (
     <div className="splash" onClick={onDone}>
-      <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#2fa84f') }} />
+      <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
       <h1>타슈 내비</h1>
       <p>대중교통 + 타슈, 한 번에</p>
     </div>
@@ -260,7 +253,7 @@ function Home({ loc, go }) {
             </button>
             <div className="lc-row">
               <button className="lc-sub" onClick={() => focus(tashu)}>
-                <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: bikeSvg('#fff') }} />
+                <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
                 <div><small>타슈 대여소</small><b>{tashu ? `도보 ${mins(tashu.d, SPEED.walk)}분` : !transit.loaded ? '찾는 중…' : transit.failed ? '잠시 후 다시' : '근처 없음'}</b></div>
               </button>
               <button className="lc-mini" onClick={() => focus(bus)}>
@@ -273,7 +266,7 @@ function Home({ loc, go }) {
       </div>
 
       <nav className="bottom-bar">
-        <button className="side-btn" onClick={() => go('left')}><span dangerouslySetInnerHTML={{ __html: bikeSvg('#1f3b2d') }} /><small>대여소</small></button>
+        <button className="side-btn" onClick={() => go('left')}><span dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} /><small>대여소</small></button>
         <button className="nav-btn" onClick={() => go('route')} aria-label="최적 경로 길찾기"><span>➤</span><small>길찾기</small></button>
         <button className="side-btn" onClick={() => go('right')}><span>👤</span><small>내 정보</small></button>
       </nav>
@@ -311,9 +304,9 @@ function RouteScreen({ loc, back }) {
     const g = L.layerGroup().addTo(map); layerRef.current = g;
     const all = [];
     for (const leg of plan.legs) {
-      const style = leg.mode === 'subway' ? { color: '#1f6f4a', weight: 6, dashArray: '2 10', lineCap: 'round' }
-        : leg.mode === 'walk' ? { color: '#8a8f98', weight: 5, dashArray: '1 8', lineCap: 'round' }
-        : { color: '#2fa84f', weight: 7 };
+      const style = leg.mode === 'subway' ? { color: C.K, weight: 6 }
+        : leg.mode === 'walk' ? { color: C.K3, weight: 5, dashArray: '1 9', lineCap: 'round' }
+        : { color: C.Y, weight: 8 };
       const line = L.geoJSON(leg.geo, { style }).addTo(g); all.push(line);
     }
     L.marker(plan.dest, { icon: L.divIcon({ className: '', html: '<div class="dest-pin">🏁</div>', iconSize: [32, 32], iconAnchor: [16, 30] }) }).addTo(g);
@@ -406,7 +399,7 @@ export default function App() {
       {screen === 'splash' && <Splash onDone={home} />}
       {screen === 'home' && <Home loc={loc} go={setScreen} />}
       {screen === 'route' && <RouteScreen loc={loc} back={home} />}
-      {screen === 'left' && <Placeholder title="대여소" icon={bikeSvg('#2fa84f')} desc="왼쪽 아래 버튼 화면 (예: 주변 타슈 대여소)" back={home} />}
+      {screen === 'left' && <Placeholder title="대여소" icon={bikeSvg('#111111')} desc="왼쪽 아래 버튼 화면 (예: 주변 타슈 대여소)" back={home} />}
       {screen === 'right' && <Placeholder title="내 정보" icon="<span style='font-size:56px'>👤</span>" desc="오른쪽 아래 버튼 화면 (예: 이용 기록·설정)" back={home} />}
     </div>
   );
