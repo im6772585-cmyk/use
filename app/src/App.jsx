@@ -99,12 +99,12 @@ const defaultBand = () => {
   const d = new Date(), h = d.getHours(), wd = d.getDay() >= 1 && d.getDay() <= 5;
   return wd && h >= 7 && h < 9 ? 0 : wd && h >= 17 && h < 19 ? 1 : 2;
 };
-const CONG_STYLE = { 2: { color: C.K3, weight: 5 }, 3: { color: C.K, weight: 6 } }; // 혼잡 = 회색, 정체 = 검정
+const CONG_STYLE = { 2: { color: C.Y2, weight: 5 }, 3: { color: C.K2, weight: 6 } }; // 혼잡 = 중간 주황, 정체 = 진한 주황
 
-function useCongestion(mapRef, band, dim = false) {
+function useCongestion(mapRef, band, dim = false, show = true) {
   useEffect(() => {
     const map = mapRef.current;
-    if (!map) return;
+    if (!map || !show) return;
     const g = L.layerGroup().addTo(map);
     for (const [a, b, name, lv] of CONG) {
       const l = lv[band];
@@ -114,11 +114,11 @@ function useCongestion(mapRef, band, dim = false) {
         .bindTooltip(`${name} · ${l === 3 ? '정체' : '혼잡'}`, { sticky: true }).addTo(g);
     }
     return () => g.remove();
-  }, [mapRef, band, dim]);
+  }, [mapRef, band, dim, show]);
 }
 
 // 자전거 경로가 혼잡·정체 도로를 얼마나 지나는지 (35m 이내를 같은 도로로 봄)
-function BandBar({ band, setBand, compact }) {
+function BandBar({ band, setBand, compact, legend }) {
   return (
     <div className={compact ? 'band-bar compact' : 'band-bar'}>
       <div className="band-seg">
@@ -126,7 +126,7 @@ function BandBar({ band, setBand, compact }) {
           <button key={b.key} aria-pressed={band === i} onClick={() => setBand(i)}>{b.nm}<small>{b.sub}</small></button>
         ))}
       </div>
-      <div className="band-legend"><span><i className="lg-2" />혼잡</span><span><i className="lg-3" />정체</span></div>
+      {legend !== false && <div className="band-legend"><span><i className="lg-2" />혼잡</span><span><i className="lg-3" />정체</span></div>}
     </div>
   );
 }
@@ -204,8 +204,10 @@ function useMap(ref, center) {
     const box = () => ref.current?.parentElement;
     const gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" }).addTo(map);
     let ok = false;
-    gl.getMaplibreMap().once('idle', () => { ok = true; box()?.classList.remove('map-failed'); });
-    setTimeout(() => { if (!ok) box()?.classList.add('map-failed'); }, 12000);
+    const glMap = gl.getMaplibreMap();
+    const okNow = () => { ok = true; box()?.classList.remove('map-failed'); };
+    glMap.once('load', okNow); glMap.on('sourcedata', (e) => { if (e.isSourceLoaded) okNow(); });
+    setTimeout(() => { if (!ok && !glMap.loaded()) box()?.classList.add('map-failed'); }, 20000);
     mapRef.current = map; force((n) => n + 1);
     return () => map.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -283,7 +285,7 @@ function useStationLayers(mapRef, bus, onPick) {
     // 버스정류장: 확대했을 때만 지름 14px
     const busG = L.layerGroup();
     bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${b.name}</div>` }) }).addTo(busG));
-    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
+    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-sub-lbl', map.getZoom() >= 14); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
     zoomCheck(); map.on('zoomend', zoomCheck);
     const onPop = (e) => {
       e.popup.getElement()?.querySelectorAll('button[data-act]').forEach((btn) => btn.addEventListener('click', () => {
@@ -302,7 +304,7 @@ function useSelectedStation(mapRef, sel) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !sel) return;
-    const m = L.marker(sel.pos, { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [36, 44], iconAnchor: [18, 42], html: `<div class="st-pin">${bikeSvg('#111111')}</div>` }) })
+    const m = L.marker(sel.pos, { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [36, 44], iconAnchor: [18, 42], html: `<div class="st-pin">${bikeSvg('#4A1D00')}</div>` }) })
       .bindPopup(stationPopup(sel), { maxWidth: 260, offset: [0, -36], autoPanPaddingTopLeft: [20, 230], autoPanPaddingBottomRight: [20, 120] }).addTo(map);
     map.setView(sel.pos, Math.max(map.getZoom(), 16));
     setTimeout(() => m.openPopup(), 300);
@@ -459,7 +461,7 @@ function Splash({ onDone }) {
   useEffect(() => { const t = setTimeout(onDone, 2200); return () => clearTimeout(t); }, [onDone]);
   return (
     <div className="splash" onClick={onDone}>
-      <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
+      <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#FFFFFF') }} />
       <h1>올라타슈 내려타슈</h1>
     </div>
   );
@@ -472,7 +474,8 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
   const [follow, setFollow] = useState(true);
   const bus = useBus(loc.pos);
   useMeMarker(mapRef, loc.pos, follow);
-  useCongestion(mapRef, band);
+  const [showCong, setShowCong] = useState(false);
+  useCongestion(mapRef, band, false, showCong);
   useStationLayers(mapRef, bus.list, pick);
   const [picker, setPicker] = useState(false);
   const [sel, setSel] = useState(null);
@@ -492,20 +495,21 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
       <div ref={el} className="map" /><MapFail />
       <div className="home-top">
         <button className="search" onClick={() => go('route')}>
-          <span className="search-modes"><Icon svg={bikeSvg('#111111')} size={24} /></span>
+          <span className="search-modes"><Icon svg={bikeSvg('#4A1D00')} size={24} /></span>
           <span className="search-ph">어디로 갈까요?</span>
           <Icon svg={searchSvg()} size={22} />
         </button>
         <div className="home-sub">
           <WeatherChip pos={loc.pos} />
-          <BandBar band={band} setBand={setBand} compact />
+          <button className={showCong ? 'cong-toggle on' : 'cong-toggle'} onClick={() => setShowCong((v) => !v)} aria-pressed={showCong}>{showCong ? '혼잡 구역 끄기' : '혼잡 구역 보기'}</button>
         </div>
+        {showCong && <BandBar band={band} setBand={setBand} compact />}
         <RentTimer rent={rent} onReturn={openReturn} />
       </div>
       {loc.error && !hideToast && <div className="toast">{loc.error}</div>}
       <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
-      <button className="st-fab" onClick={() => { setFollow(false); setPicker(true); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#111111')} size={22} /><small>대여소</small></button>
+      <button className="st-fab" onClick={() => { setFollow(false); setPicker(true); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#4A1D00')} size={22} /><small>대여소</small></button>
       {sel && <button className="st-clear" onClick={() => setSel(null)}>{sel.name} ✕</button>}
       <button className="near-chip" onClick={() => { setFollow(false); if (xfer) setSel(xfer); else mapRef.current?.setView(sub.pos, 17); }}>
         <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
@@ -538,7 +542,7 @@ function ModeBar({ legs }) {
     <div className="modebar">
       {legs.map((l, i) => (
         <div key={i} className={`mb-seg mb-${l.mode}`} style={{ flexGrow: Math.max(l.min, total * 0.08) }}>
-          <span className="mb-ico"><Icon svg={MODE_ICON[l.mode](l.mode === 'subway' ? '#111111' : '#111111')} size={20} /><small>{l.min}분</small></span>
+          <span className="mb-ico"><Icon svg={MODE_ICON[l.mode]('#4A1D00')} size={20} />{l.min / total >= 0.15 && <small>{l.min}분</small>}</span>
           <i />
           {i < legs.length - 1 && l.mode !== 'walk' && legs[i + 1].mode !== 'walk' && <em className="mb-x">⇄</em>}
         </div>
@@ -583,7 +587,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const origin = from || { name: loc.live ? '현재 위치' : '현재 위치 (대전시청 기준)', pos: loc.pos, here: true };
 
   useMeMarker(mapRef, loc.pos, !!guide || riding);
-  useCongestion(mapRef, band, !!plans || !!course);
+  useCongestion(mapRef, band, true, false);
   useStationLayers(mapRef, bus.list, (act, place) => { if (act === 'from') setFrom(place); else setTo(place); setEditing(null); setSel(null); });
   const [picker, setPicker] = useState(false);
   const [sel, setSel] = useState(null);
@@ -692,7 +696,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
 
       {guide ? (
         <div className={`guide-card g-${curStep.mode}`}>
-          <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#111111')} size={32} />
+          <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#4A1D00')} size={32} />
           <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.text}</b>
             {guide.steps[guide.i + 1] && guide.steps[guide.i + 1].mode !== curStep.mode && <em>다음: {MODE_NM[guide.steps[guide.i + 1].mode]}(으)로 갈아타기</em>}
           </div>
@@ -710,9 +714,9 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
           <button className="swap" onClick={swap} aria-label="출발지와 도착지 바꾸기">⇅</button>
         </header>
       )}
-      {!guide && !course && !editing && <div className="route-band"><BandBar band={band} setBand={setBand} compact /></div>}
+      {!guide && !course && !editing && <div className="route-band"><BandBar band={band} setBand={setBand} compact legend={false} /></div>}
       {!guide && <div className="route-timer"><RentTimer rent={rent} onReturn={openReturn} /></div>}
-      {!guide && !editing && !course && <button className="st-fab route-st" onClick={() => setPicker(true)} aria-label="대여소 보기"><Icon svg={bikeSvg('#111111')} size={22} /><small>대여소</small></button>}
+      {!guide && !editing && !course && <button className="st-fab route-st" onClick={() => setPicker(true)} aria-label="대여소 보기"><Icon svg={bikeSvg('#4A1D00')} size={22} /><small>대여소</small></button>}
       {picker && <StationPicker center={to ? to.pos : origin.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
 
       {editing && !guide && (
@@ -792,7 +796,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                     <span>{['출근', '퇴근', '평시'][band]} 혼잡 도로 {p.congKm >= 0.05 ? `${p.congKm.toFixed(1)}km` : '없음'}</span>
                     {p.bikeKm > 0 ? <><span>타슈 {p.bikeKm.toFixed(1)}km</span><span>{p.kcal}kcal</span><span>탄소 {p.co2.toLocaleString()}g 감축</span></> : <span>탄소 감축 0g (타슈 구간 없음)</span>}
                   </div>
-                  <ol className="steps">{steps.map((s, i) => <li key={i}><Icon svg={MODE_ICON[s.mode]('#111111')} size={18} className={`st-${s.mode}`} />{s.text}</li>)}</ol>
+                  <ol className="steps">{steps.map((s, i) => <li key={i}><Icon svg={MODE_ICON[s.mode]('#4A1D00')} size={18} className={`st-${s.mode}`} />{s.text}</li>)}</ol>
                   <button className="cc-btn" onClick={() => { setGuide({ steps, i: 0 }); setArrived(false); mapRef.current?.setView(origin.pos, 17); }}>안내 시작</button>
                   <small className="note">{p.legs.some((l) => l.exact === false) ? '일부 구간은 경로 서버에 연결하지 못해 직선으로 표시했어요. ' : ''}{p.legs.some((l) => l.mode === 'bus') ? '버스 시간은 도로 혼잡도로 추정한 값이에요. ' : ''}{p.legs.some((l) => l.mode === 'subway') ? '지하철은 한 정거장 2분 + 대기 4분으로 계산했어요.' : ''}</small>
                 </div>
@@ -865,7 +869,7 @@ function MyInfo({ back, rent, openRent, openReturn }) {
         </section>
 
         <section className="card icon-card">
-          <div className="app-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
+          <div className="app-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#4A1D00') }} />
           <div>
             <b>타슈 네비 앱 아이콘</b>
             <p>휴대폰 브라우저에서 이 페이지를 연 뒤 공유 → <b>홈 화면에 추가</b>를 누르면 타슈 아이콘으로 바탕화면에 생겨요.</p>
