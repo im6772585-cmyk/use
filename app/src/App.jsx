@@ -112,8 +112,8 @@ function applyCongestion0(glMap, band, show) {
   if (!glMap || !glMap.getSource('omt')) return false;
   if (!glMap.getLayer('cong-case')) {
     const before = glMap.getLayer('road-name') ? 'road-name' : undefined;
-    glMap.addLayer({ id: 'cong-case', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['==', 1, 0], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-color': C.W, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 16, 12] } }, before);
-    glMap.addLayer({ id: 'cong-line', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['==', 1, 0], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 8] } }, before);
+    glMap.addLayer({ id: 'cong-case', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['in', NAME_EXPR, ['literal', []]], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-color': C.W, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 16, 12] } }, before);
+    glMap.addLayer({ id: 'cong-line', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['in', NAME_EXPR, ['literal', []]], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 8] } }, before);
   }
   const l3 = congNames(band, 3), l2 = congNames(band, 2);
   const f = ['in', NAME_EXPR, ['literal', [...l3, ...l2]]];
