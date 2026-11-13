@@ -616,3 +616,51 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .st-clear { bottom: 172px; }
 .recenter { bottom: 180px; }
 .toast { bottom: 240px; }
+
+/* ===== v12: 겹침 없애기 + 남은 테두리 전부 그림자로 ===== */
+/* 위쪽: 화면 폭 전체를 덮는 판 → 지도 글자·아이콘이 검색창 옆/위로 삐져나오지 않음 */
+.home-top { top: 0; left: 0; right: 0; padding: 12px 12px 12px; background: #FAFAF3;
+  border-radius: 0 0 20px 20px; box-shadow: 0 4px 14px rgba(21,39,62,.12); }
+.home-top .search, .home-top .cong-toggle, .home-top .weather { box-shadow: 0 2px 8px rgba(21,39,62,.10) !important; }
+/* 아래: 길찾기 버튼을 탭바 안으로 (위로 튀어나와 지도 글자와 겹치지 않게) */
+.bottom-bar { height: 84px; padding: 0 30px 6px; }
+.nav-btn { width: 60px !important; height: 60px !important; margin-top: 0 !important; }
+/* 칩·대여소 버튼: 서로 안 겹치게 폭 제한 */
+.near-chip { max-width: calc(100% - 12px - 64px - 22px); overflow: hidden; }
+.near-chip b, .near-chip span:not(.lc-ico) { overflow: hidden; text-overflow: ellipsis; }
+.near-chip em { flex: none; }
+.near-chip, .st-fab, .target-card { bottom: 98px; }
+.target-card { right: 86px; }
+.recenter { bottom: 166px; }
+.st-clear { bottom: 166px; right: 66px; }
+
+/* 남은 테두리 → 없애고 그림자 */
+.me-dot, .mk-tashu, .mk-bus, .mk-subway, .lc-ico, .lc-ico.tashu, .lc-ico.bus, .dot-from, .dot-to,
+.st-pin, .dest-pin, .xfer-pt, .mb-bike > i, .g-fold, .info-head, .search-modes { border: none !important; }
+.me-dot { box-shadow: 0 0 0 0 transparent, 0 3px 10px rgba(21,39,62,.40) !important; }
+.mk-tashu, .mk-bus, .mk-subway, .st-pin, .dest-pin, .xfer-pt, .dot-from, .dot-to { box-shadow: 0 2px 6px rgba(21,39,62,.40) !important; }
+.dot-from { background: #D4D596 !important; }
+.mb-bike > i, .lc-ico { box-shadow: 0 1px 4px rgba(21,39,62,.25); }
+.g-fold { box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+/* 목록 구분선 → 선 대신 간격과 옅은 바탕 */
+.hist, .steps li, .res, .ret-row, .timeline li + li, .rent-card .hist:first-of-type { border: none !important; }
+.res + .res, .ret-row + .ret-row, .hist + .hist { margin-top: 4px; }
+.res, .ret-row { border-radius: 10px; }
+.res:hover, .ret-row:hover { background: #F4F4E8; }
+.info-head { box-shadow: 0 2px 10px rgba(21,39,62,.08); }
+/* 길찾기 화면 위쪽도 화면 폭 전체 판으로 */
+.route-fields, .route-head { top: 0 !important; left: 0 !important; right: 0 !important; padding: 12px !important;
+  background: #FAFAF3 !important; border-radius: 0 0 20px 20px !important; box-shadow: 0 4px 14px rgba(21,39,62,.12) !important; }
+.route-fields .fld { background: #FFFFFF; box-shadow: 0 1px 6px rgba(21,39,62,.08); }
+.route-fields .fld.on { background: #EEF6C4; }
+.route-fields .back, .route-fields .swap, .route-head .back { background: #FFFFFF; box-shadow: 0 1px 6px rgba(21,39,62,.08) !important; }
+.screen:has(.route-band) .route-fields { border-radius: 0 !important; box-shadow: none !important; }
+.route-band { top: var(--rf-h, 118px) !important; left: 0 !important; right: 0 !important; padding: 0 12px 12px; background: #FAFAF3;
+  border-radius: 0 0 20px 20px; box-shadow: 0 6px 14px rgba(21,39,62,.12); }
+.route-band .band-bar { box-shadow: 0 1px 6px rgba(21,39,62,.08) !important; }
+.search-sheet { top: calc(var(--rf-h, 118px) + 8px); }
+/* 아래 칩 줄 뒤에 옅은 바탕을 깔아 지도 글자가 칩 사이로 반쯤 비치지 않게 */
+.bottom-bar::before { content: ''; position: absolute; left: 0; right: 0; bottom: 100%; height: 96px; pointer-events: none;
+  background: linear-gradient(to top, #FAFAF3 0%, #FAFAF3 62%, rgba(250,250,243,0) 100%); z-index: -1; }
+.near-chip, .st-fab, .target-card, .recenter, .st-clear { z-index: 520 !important; }
+.guide-card { top: 0 !important; left: 0 !important; right: 0 !important; border-radius: 0 0 20px 20px !important; padding-top: 14px !important; }

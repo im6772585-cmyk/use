@@ -227,7 +227,8 @@ function useMap(ref, center) {
     const addSubway = () => {
       if (glMap.getSource('subway')) return;
       glMap.addSource('subway', { type: 'geojson', data: { type: 'FeatureCollection', features: SUBWAY.map((st) => ({ type: 'Feature', properties: { name: st.name }, geometry: { type: 'Point', coordinates: [st.pos[1], st.pos[0]] } })) } });
-      glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 7, 14, 13], 'circle-color': C.K, 'circle-stroke-color': C.W, 'circle-stroke-width': 2 } });
+      glMap.addLayer({ id: 'subway-shadow', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 9, 14, 16], 'circle-color': '#15273E', 'circle-opacity': 0.28, 'circle-blur': 0.7, 'circle-translate': [0, 2] } });
+      glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 7, 14, 13], 'circle-color': C.K } });
       // 동그라미 안에 지하철 아이콘
       const img = new Image(48, 48);
       img.onload = () => {
@@ -720,14 +721,28 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
         bounds = bounds ? bounds.extend(ly.getBounds()) : ly.getBounds();
         if (l.mode === 'subway') l.stations.forEach((s) => L.circleMarker(s, { radius: 3, color: C.K, weight: 1, fillColor: C.W, fillOpacity: 1 }).addTo(g));
       });
-      // 환승 지점: 흰 원 + 진한 테두리 ⇄
+      // 환승 지점 ⇄ : 출발·도착 표시나 다른 환승 표시와 화면에서 겹치면 숨김
+      const pts = [];
       p.legs.slice(0, -1).forEach((l, i) => {
         const nx = p.legs[i + 1];
         if (l.mode === nx.mode || (l.mode === 'walk' && nx.mode === 'walk')) return;
         const c = l.geo.coordinates.at(-1);
-        L.marker([c[1], c[0]], { zIndexOffset: 900, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div class="xfer-pt">⇄</div>' }) }).addTo(g);
+        pts.push(L.marker([c[1], c[0]], { zIndexOffset: 900, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div class="xfer-pt">⇄</div>' }) }).addTo(g));
       });
       L.marker(to.pos, { zIndexOffset: 950, icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [30, 30], iconAnchor: [15, 28] }) }).addTo(g);
+      const declutter = () => {
+        const px = (ll) => map.latLngToContainerPoint(ll);
+        const taken = [px(origin.pos), px(to.pos)];
+        pts.forEach((m) => {
+          const q = px(m.getLatLng());
+          const clash = taken.some((t) => t.distanceTo(q) < 40);
+          const el = m.getElement(); if (el) el.style.display = clash ? 'none' : '';
+          if (!clash) taken.push(q);
+        });
+      };
+      map.on('zoomend moveend', declutter);
+      g.on('remove', () => map.off('zoomend moveend', declutter));
+      setTimeout(declutter, 0);
       if (bounds && !guide) map.fitBounds(bounds, { paddingTopLeft: [30, 190], paddingBottomRight: [30, 360] });
     }
   }, [plans, tab, mapRef, course]); // eslint-disable-line react-hooks/exhaustive-deps
