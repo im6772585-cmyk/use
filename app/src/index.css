@@ -243,3 +243,4 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .won div { display: flex; flex-direction: column; }
 .won b { font-size: 16px; }
 .won small { font-size: 12px; }
+.mk-tashu { width: 22px; height: 22px; padding: 2px; }

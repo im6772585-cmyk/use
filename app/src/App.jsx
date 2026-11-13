@@ -142,7 +142,7 @@ function useTransit(center) {
 const icons = {
   subway: (name) => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
     html: `<div class="mk mk-subway">${trainSvg()}</div><div class="lbl lbl-subway">${name}</div>` }),
-  tashu: (name) => L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
+  tashu: (name) => L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11],
     html: `<div class="mk mk-tashu">${bikeSvg('#111111')}</div><div class="lbl lbl-tashu">${name}</div>` }),
   bus: (name) => L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6],
     html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${name}</div>` }),
@@ -159,7 +159,7 @@ function useTransitLayer(mapRef, transit, center) {
     const zoomClass = () => {
       const el = map.getContainer(); const z = map.getZoom();
       el.classList.toggle('z-bus-lbl', z >= 17);
-      el.classList.toggle('z-tashu-lbl', z >= 15);
+      el.classList.toggle('z-tashu-lbl', z >= 18);
     };
     zoomClass(); map.on('zoomend', zoomClass);
     return () => { map.off('zoomend', zoomClass); g.remove(); };
