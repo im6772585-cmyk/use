@@ -87,11 +87,15 @@ async function osrm(profile, a, b, alts = false) {
 
 // 자전거 구간: 대안 경로 여러 개 중 선택한 기준(혼잡 회피 / 자전거길 우선 / 최단 거리)으로 가장 좋은 것
 async function bikeLeg(a, b, band, mode, label) {
-  const alts = await osrm('bike', a, b, true);
+  // 후보: 자전거길 위주 경로(bike) + 도로 경로(car) + 생활도로 경로(foot) — 타슈는 차도·자전거길 모두 달릴 수 있음
+  const [bk, car, foot] = await Promise.all([osrm('bike', a, b, true), osrm('car', a, b), osrm('foot', a, b)]);
+  const alts = [...bk.map((r) => ({ ...r, prof: 'bike' })), ...car.map((r) => ({ ...r, prof: 'car' })), ...foot.map((r) => ({ ...r, prof: 'foot' }))].filter((r, i, arr) => r.exact || arr.every((x) => !x.exact));
   const scored = alts.map((r) => ({ ...r, ...analyze(r.geo, band) }));
   const minKm = Math.min(...scored.map((r) => r.km));
-  const ok = scored.filter((r) => r.km <= minKm * 1.4); // 너무 먼 우회로는 제외
-  const best = ok.sort((x, y) => x.cost[mode] - y.cost[mode])[0];
+  const ok = scored.filter((r) => r.km <= minKm * (mode === 'bike' ? 2.2 : 1.4)); // 너무 먼 우회로는 제외
+  // 자전거길 우선: 자전거길을 따라가는 경로(OSM 자전거 프로필)를 먼저 고름
+  const pool = mode === 'bike' && ok.some((r) => r.prof === 'bike' && r.exact) ? ok.filter((r) => r.prof === 'bike') : ok;
+  const best = pool.sort((x, y) => x.cost[mode] - y.cost[mode])[0];
   return { mode: 'bike', geo: best.geo, km: best.km, min: Math.max(1, Math.round(best.bikeMin)), congKm: best.congKm, bikewayKm: best.bikewayKm, exact: best.exact, label };
 }
 const walkLeg = (a, b, label) => { const km = dist(a, b) * 1.25; return { mode: 'walk', geo: line(a, b), km, min: mins(km, WALK), label }; };
