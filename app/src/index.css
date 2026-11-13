@@ -677,3 +677,4 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .st-list .ret-row em { color: #FFFFFF !important; }
 .st-clear { color: #DDF159 !important; }
 .mk-bus { background: #305A52 !important; box-shadow: 0 0 0 2px rgba(255,255,255,.9), 0 1px 4px rgba(21,39,62,.4) !important; }
+.st-fab.route-st.bus-fab { top: 184px !important; right: 76px !important; }
