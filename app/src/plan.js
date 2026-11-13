@@ -92,14 +92,16 @@ async function bikeLeg(a, b, band, mode, label) {
   const best = pool.sort((x, y) => x.cost[mode] - y.cost[mode])[0];
   return { mode: 'bike', geo: best.geo, km: best.km, min: Math.max(1, Math.round(best.bikeMin)), congKm: best.congKm, bikewayKm: best.bikewayKm, exact: best.exact, label };
 }
-// 산길(등산로) 지름길 걸러내기: 자동차 도로 경로보다 20% 넘게 짧은 자전거·도보 경로는 산이나 공원 숲길을
+// 산길(등산로) 지름길 걸러내기: 자동차 도로 경로보다 15% 넘게 짧거나 산길 이름(산공원로·등산로·숲길 등)이 들어간 자전거·도보 경로는 산이나 공원 숲길을
 // 가로지른 것으로 보고 뺌 (타슈는 생활자전거라 산길을 못 탐)
 const geoKm = (g) => { const c = g.coordinates; let k = 0; for (let i = 1; i < c.length; i++) k += dist([c[i - 1][1], c[i - 1][0]], [c[i][1], c[i][0]]); return k; };
+const TRAIL_NAME = /산공원|등산|숲길|둘레길|임도|산책로|오솔길/;
 function dropTrails(alts) {
   const roads = alts.filter((r) => r.exact && r.prof === 'car');
   if (!roads.length) return alts;
   const roadKm = Math.min(...roads.map((r) => geoKm(r.geo)));
-  const kept = alts.filter((r) => !r.exact || r.prof === 'car' || geoKm(r.geo) >= roadKm * 0.8);
+  const trail = (r) => (r.steps || []).some((st) => TRAIL_NAME.test(st.name));
+  const kept = alts.filter((r) => !r.exact || r.prof === 'car' || (geoKm(r.geo) >= roadKm * 0.85 && !trail(r)));
   return kept.length ? kept : roads;
 }
 // 걷기 구간도 실제 길을 따라 그림 (직선으로 산·하천을 가로지르지 않게)
