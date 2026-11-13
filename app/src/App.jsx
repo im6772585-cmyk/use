@@ -217,7 +217,7 @@ function useMap(ref, center) {
     const gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" }).addTo(map);
     let ok = false;
     const glMap = gl.getMaplibreMap();
-    map._gl = glMap;
+    map._gl = glMap; window.__tashuGL = glMap;
     const okNow = () => { ok = true; box()?.classList.remove('map-failed'); };
     glMap.once('load', okNow); glMap.on('sourcedata', (e) => { if (e.isSourceLoaded) okNow(); });
     // 도시철도역을 지도 글자와 같은 층에 그려서 역 이름과 지명이 서로 겹치지 않게 함
