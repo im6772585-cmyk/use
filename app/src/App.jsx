@@ -163,21 +163,22 @@ function useMap(ref, center) {
   useEffect(() => {
     const map = L.map(ref.current, { zoomControl: false }).setView(center, 16);
     // 밝고 차분한 지도 스타일 (CARTO Voyager)
-    // 1순위 CARTO Voyager, 실패하면 OpenStreetMap 기본 지도로 자동 전환
+    // 1순위 OpenStreetMap(한글 지명) + 부드러운 색 보정, 실패하면 Esri 회색 지도로 자동 전환
     let errors = 0, loaded = 0, switched = false;
-    const carto = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 20, subdomains: 'abcd', attribution: '© OpenStreetMap · © CARTO',
+    const box = () => ref.current?.parentElement;
+    const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      maxZoom: 19, attribution: '© OpenStreetMap', className: 'soft-tiles',
     }).addTo(map);
-    const showFail = () => ref.current?.parentElement?.classList.add('map-failed');
-    carto.on('tileload', () => { loaded++; ref.current?.parentElement?.classList.remove('map-failed'); });
-    carto.on('tileerror', () => {
+    osm.on('tileload', () => { loaded++; box()?.classList.remove('map-failed'); });
+    osm.on('tileerror', () => {
       if (++errors < 4 || loaded || switched) return;
-      switched = true; carto.remove();
-      const osm = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
-      let ok = false; osm.on('tileload', () => { ok = true; ref.current?.parentElement?.classList.remove('map-failed'); });
-      setTimeout(() => { if (!ok) showFail(); }, 5000);
+      switched = true; osm.remove();
+      const esri = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16, attribution: '© Esri' }).addTo(map);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Reference/MapServer/tile/{z}/{y}/{x}', { maxZoom: 16 }).addTo(map);
+      let ok = false; esri.on('tileload', () => { ok = true; box()?.classList.remove('map-failed'); });
+      setTimeout(() => { if (!ok) box()?.classList.add('map-failed'); }, 6000);
     });
-    setTimeout(() => { if (!loaded && !switched) showFail(); }, 8000);
+    setTimeout(() => { if (!loaded && !switched) box()?.classList.add('map-failed'); }, 8000);
     mapRef.current = map; force((n) => n + 1);
     return () => map.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -113,3 +113,5 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .map-fail { display: none; position: absolute; left: 24px; right: 24px; top: 38%; z-index: 450; background: #fff; border-radius: 16px; padding: 18px; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: 13px; color: #5b6168; }
 .map-fail > b { font-size: 16px; color: #2b2f33; }
 .map-failed .map-fail { display: block; }
+/* OSM 색을 네이버 지도처럼 차분하게 */
+.soft-tiles { filter: saturate(0.45) brightness(1.06) contrast(0.92); }
