@@ -491,7 +491,7 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
     const onClick = (e) => {
       const pos = [e.latlng.lat, e.latlng.lng];
       const st = nearest(TASHU, pos), sb = nearest(SUBWAY, pos);
-      const name = sb.d < 0.3 ? `${sb.name} 부근` : `${st.dong} ${st.d < 0.15 ? st.name : '부근'}`;
+      const name = sb.d < 0.3 ? `${sb.name} 부근` : st.d < 0.15 ? `${st.name} 부근` : `${st.dong} 부근`;
       setTarget({ name, pos, st, sb }); setFollow(false);
     };
     map.on('click', onClick); return () => map.off('click', onClick);
