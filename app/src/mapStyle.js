@@ -1,15 +1,15 @@
-// 주황색 한 가지의 명도·채도 단계만 쓰는 지도 스타일
+// 파란색 한 가지의 명도·채도 단계만 쓰는 지도 스타일 (남색 글자로 가독성 확보)
 export const C = {
-  Y: '#FF7A00',   // 주황 (진함) - 가장 중요한 것
-  Y2: '#FFA54F',  // 주황 (중간)
-  Y3: '#FFE8D1',  // 주황 (아주 옅음)
-  K: '#4A1D00',   // 주황 (가장 어두움) - 글자
-  K2: '#7A3A0A',
-  K3: '#C07A3A',
-  K4: '#F5CBA3',
-  K5: '#FCE6D2',
+  Y: '#1E5AA8',   // 파랑 (진함) - 가장 중요한 것
+  Y2: '#6C9BD8',  // 파랑 (중간)
+  Y3: '#DCE8F8',  // 파랑 (옅음)
+  K: '#0B2545',   // 남색 (가장 어두움) - 글자
+  K2: '#24497E',
+  K3: '#6F86A6',
+  K4: '#C5D6EE',
+  K5: '#E8EFF9',
   W: '#FFFFFF',
-  W2: '#FFF9F4',
+  W2: '#F7FAFE',
 };
 
 const name = ['coalesce', ['get', 'name:ko'], ['get', 'name']];
@@ -23,7 +23,7 @@ export const mapStyle = {
     { id: 'bg', type: 'background', paint: { 'background-color': C.W2 } },
     { id: 'park', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': C.Y3, 'fill-opacity': 0.6 } },
     { id: 'wood', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: cls('wood', 'grass'), paint: { 'fill-color': C.Y3, 'fill-opacity': 0.4 } },
-    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': C.K5 } },
+    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': C.K4 } },
     { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': C.K5, 'line-width': 2 } },
     { id: 'building', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 15, paint: { 'fill-color': C.K5, 'fill-opacity': 0.7 } },
 
