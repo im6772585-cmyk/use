@@ -434,3 +434,4 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .st-search { height: 48px; border-radius: 12px; border: 2px solid #111111; padding: 0 14px; font-size: 15px; font-family: inherit; }
 .st-list { overflow-y: auto; display: flex; flex-direction: column; }
 .xf-tag { font-style: normal; font-size: 10px; background: #111111; color: #FFD200; padding: 1px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
+.st-clear { top: auto; bottom: 156px; left: 12px; transform: none; }

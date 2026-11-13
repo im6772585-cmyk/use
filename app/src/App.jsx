@@ -303,7 +303,7 @@ function useSelectedStation(mapRef, sel) {
     const map = mapRef.current;
     if (!map || !sel) return;
     const m = L.marker(sel.pos, { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [36, 44], iconAnchor: [18, 42], html: `<div class="st-pin">${bikeSvg('#111111')}</div>` }) })
-      .bindPopup(stationPopup(sel), { maxWidth: 260, offset: [0, -36] }).addTo(map);
+      .bindPopup(stationPopup(sel), { maxWidth: 260, offset: [0, -36], autoPanPaddingTopLeft: [20, 230], autoPanPaddingBottomRight: [20, 120] }).addTo(map);
     map.setView(sel.pos, Math.max(map.getZoom(), 16));
     setTimeout(() => m.openPopup(), 300);
     return () => m.remove();
@@ -476,6 +476,8 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
   useStationLayers(mapRef, bus.list, pick);
   const [picker, setPicker] = useState(false);
   const [sel, setSel] = useState(null);
+  const [hideToast, setHideToast] = useState(false);
+  useEffect(() => { const t = setTimeout(() => setHideToast(true), 6000); return () => clearTimeout(t); }, []);
   useSelectedStation(mapRef, sel);
   useEffect(() => {
     const m = mapRef.current; if (!m) return;
@@ -500,7 +502,7 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
         </div>
         <RentTimer rent={rent} onReturn={openReturn} />
       </div>
-      {loc.error && <div className="toast">{loc.error}</div>}
+      {loc.error && !hideToast && <div className="toast">{loc.error}</div>}
       <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
       <button className="st-fab" onClick={() => { setFollow(false); setPicker(true); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#111111')} size={22} /><small>대여소</small></button>
