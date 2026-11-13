@@ -664,3 +664,6 @@ body, .screen, .modal, .sheet { color: #15273E; }
   background: linear-gradient(to top, #FAFAF3 0%, #FAFAF3 62%, rgba(250,250,243,0) 100%); z-index: -1; }
 .near-chip, .st-fab, .target-card, .recenter, .st-clear { z-index: 520 !important; }
 .guide-card { top: 0 !important; left: 0 !important; right: 0 !important; border-radius: 0 0 20px 20px !important; padding-top: 14px !important; }
+/* 위치 찍기 핀 (물방울 핀) */
+.loc-pin { width: 34px; height: 44px; filter: drop-shadow(0 2px 3px rgba(21,39,62,.35)); }
+.loc-pin svg { width: 100%; height: 100%; display: block; }

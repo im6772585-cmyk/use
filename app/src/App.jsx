@@ -6,7 +6,7 @@ import { mapStyle, C } from './mapStyle.js';
 import { COURSES, SUBWAY_LOAD } from './data.js';
 import { ROAD_LV } from './congestion.js';
 import { ART } from './art.js';
-import { bikeSvg, myLocationHtml, trainSvg, personSvg, busSvg, walkSvg, qrSvg, searchSvg, medalSvg } from './rider.js';
+import { pinSvg, bikeSvg, myLocationHtml, trainSvg, personSvg, busSvg, walkSvg, qrSvg, searchSvg, medalSvg } from './rider.js';
 import { planAll, SUBWAY, TASHU, TRANSFER, nearest, dist, KCAL_PER_KM, CO2_G_PER_KM } from './plan.js';
 
 const DAEJEON_CENTER = [36.3504, 127.3845]; // 대전시청
@@ -526,7 +526,7 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
   }, [mapRef, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     const map = mapRef.current; if (!map || !target) return;
-    const m = L.marker(target.pos, { zIndexOffset: 1300, icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [30, 30], iconAnchor: [15, 28] }) }).addTo(map);
+    const m = L.marker(target.pos, { zIndexOffset: 1300, icon: L.divIcon({ className: '', html: `<div class="loc-pin">${pinSvg()}</div>`, iconSize: [34, 44], iconAnchor: [17, 41] }) }).addTo(map);
     return () => m.remove();
   }, [mapRef, target]);
   useEffect(() => { const t = setTimeout(() => setHideToast(true), 6000); return () => clearTimeout(t); }, []);
@@ -729,7 +729,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
         const c = l.geo.coordinates.at(-1);
         pts.push(L.marker([c[1], c[0]], { zIndexOffset: 900, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div class="xfer-pt">⇄</div>' }) }).addTo(g));
       });
-      L.marker(to.pos, { zIndexOffset: 950, icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [30, 30], iconAnchor: [15, 28] }) }).addTo(g);
+      L.marker(to.pos, { zIndexOffset: 950, icon: L.divIcon({ className: '', html: `<div class="loc-pin">${pinSvg()}</div>`, iconSize: [34, 44], iconAnchor: [17, 41] }) }).addTo(g);
       const declutter = () => {
         const px = (ll) => map.latLngToContainerPoint(ll);
         const taken = [px(origin.pos), px(to.pos)];
