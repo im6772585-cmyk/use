@@ -25,7 +25,7 @@ export const mapStyle = {
     { id: 'wood', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: cls('wood', 'grass'), paint: { 'fill-color': C.Y3, 'fill-opacity': 0.4 } },
     { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': C.K4 } },
     { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': C.K5, 'line-width': 2 } },
-    { id: 'building', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 15, paint: { 'fill-color': C.K5, 'fill-opacity': 0.7 } },
+    { id: 'building', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 16, paint: { 'fill-color': C.K5, 'fill-opacity': 0.45 } },
 
     // 도로: 작은 길은 흰색, 큰 길은 흰색+회색 테두리, 간선도로는 옅은 노랑
     { id: 'road-minor', type: 'line', source: 'omt', 'source-layer': 'transportation', filter: cls('minor', 'service'), minzoom: 13,
@@ -48,17 +48,17 @@ export const mapStyle = {
 
     // 글자: 동 이름 > 큰 도로 이름 > 하천 이름 (크기·진하기로 중요도 구분)
     { id: 'water-name', type: 'symbol', source: 'omt', 'source-layer': 'water_name',
-      layout: { 'text-field': name, 'text-font': ['Noto Sans Regular'], 'text-size': 11, 'text-padding': 8 },
-      paint: { 'text-color': C.K3, 'text-halo-color': C.W, 'text-halo-width': 1.5 } },
+      layout: { 'text-field': name, 'text-font': ['Noto Sans Regular'], 'text-size': 13, 'text-padding': 8 },
+      paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } },
     { id: 'road-name', type: 'symbol', source: 'omt', 'source-layer': 'transportation_name', minzoom: 15,
       filter: cls('primary', 'secondary', 'tertiary', 'trunk', 'motorway'),
-      layout: { 'symbol-placement': 'line', 'symbol-spacing': 400, 'text-field': name, 'text-font': ['Noto Sans Regular'], 'text-size': 12, 'text-padding': 24, 'text-max-angle': 30 },
-      paint: { 'text-color': C.K2, 'text-halo-color': C.W, 'text-halo-width': 2 } },
+      layout: { 'symbol-placement': 'line', 'symbol-spacing': 400, 'text-field': name, 'text-font': ['Noto Sans Regular'], 'text-size': 14, 'text-padding': 24, 'text-max-angle': 30 },
+      paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } },
     { id: 'place-small', type: 'symbol', source: 'omt', 'source-layer': 'place', minzoom: 13, filter: cls('suburb', 'quarter', 'neighbourhood'),
-      layout: { 'text-field': name, 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 13, 12, 16, 14], 'text-padding': 16 },
-      paint: { 'text-color': C.K3, 'text-halo-color': C.W, 'text-halo-width': 2 } },
+      layout: { 'text-field': name, 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 13, 14, 16, 17], 'text-padding': 16 },
+      paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } },
     { id: 'place-city', type: 'symbol', source: 'omt', 'source-layer': 'place', filter: cls('city', 'town'),
-      layout: { 'text-field': name, 'text-font': ['Noto Sans Bold'], 'text-size': 16, 'text-padding': 20 }, maxzoom: 13,
-      paint: { 'text-color': C.K2, 'text-halo-color': C.W, 'text-halo-width': 2 } },
+      layout: { 'text-field': name, 'text-font': ['Noto Sans Bold'], 'text-size': 18, 'text-padding': 20 }, maxzoom: 13,
+      paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } },
   ],
 };

@@ -10,12 +10,12 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .splash { height: 100%; background: #DCE8F8; display: flex; flex-direction: column; align-items: center; justify-content: center; animation: fade .5s; }
 .splash-icon { width: 150px; height: 150px; animation: ride 1.6s ease-in-out infinite; }
 .splash h1 { margin: 14px 0 4px; font-size: 30px; color: #0B2545; letter-spacing: -1px; }
-.splash p { margin: 0; color: #6F86A6; font-size: 14px; }
+.splash p { margin: 0; color: #24497E; font-size: 14px; }
 @keyframes ride { 0%,100% { transform: translateX(-8px); } 50% { transform: translateX(8px); } }
 
 .screen { position: absolute; inset: 0; animation: fade .25s; }
 .map { position: absolute; inset: 0; z-index: 0; background: #F5F8FD; }
-.leaflet-control-attribution { font-size: 9px; }
+.leaflet-control-attribution { font-size: 12px; }
 
 /* 내 위치 (자전거) */
 .me { position: relative; }
@@ -27,49 +27,49 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .mk { border-radius: 50%; display: flex; align-items: center; justify-content: center; }
 .mk-subway { width: 34px; height: 34px; border-radius: 10px; background: #0B2545; color: #fff; font-size: 18px; border: 2px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.3); }
 .mk-tashu { width: 26px; height: 26px; background: #1E5AA8; border: 2px solid #fff; padding: 3px; box-shadow: 0 1px 4px rgba(0,0,0,.25); }
-.mk-bus { width: 12px; height: 12px; background: #6F86A6; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+.mk-bus { width: 12px; height: 12px; background: #24497E; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0,0,0,.25); }
 .lbl { position: absolute; left: 50%; transform: translateX(-50%); white-space: nowrap; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; pointer-events: none; }
 .lbl-subway { top: 36px; font-size: 14px; font-weight: 800; color: #0B2545; }
-.lbl-tashu { top: 28px; font-size: 11px; font-weight: 600; color: #0B2545; display: none; }
-.lbl-bus { top: 13px; font-size: 10px; color: #24497E; display: none; }
+.lbl-tashu { top: 28px; font-size: 12px; font-weight: 600; color: #0B2545; display: none; }
+.lbl-bus { top: 13px; font-size: 12px; color: #24497E; display: none; }
 .z-tashu-lbl .lbl-tashu, .z-bus-lbl .lbl-bus { display: block; }
 .dest-pin { font-size: 28px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.3)); }
 
 /* 날씨: 작게 (보조 정보) */
 .weather { position: absolute; top: 14px; left: 14px; z-index: 500; background: rgba(255,255,255,.95); border-radius: 20px; padding: 6px 12px; display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 8px rgba(0,0,0,.12); font-size: 13px; }
 .weather b { font-size: 14px; }
-.w-l { color: #6F86A6; font-size: 12px; }
-.w-warn { background: #DCE8F8; color: #0B2545; font-size: 11px; padding: 2px 6px; border-radius: 8px; }
+.w-l { color: #24497E; font-size: 12px; }
+.w-warn { background: #DCE8F8; color: #0B2545; font-size: 12px; padding: 2px 6px; border-radius: 8px; }
 .toast { position: absolute; top: 56px; left: 14px; right: 14px; z-index: 500; background: rgba(43,47,51,.85); color: #fff; font-size: 12px; padding: 7px 12px; border-radius: 10px; text-align: center; }
 .recenter { position: absolute; right: 14px; top: 14px; z-index: 500; width: 40px; height: 40px; border-radius: 50%; background: #fff; font-size: 20px; color: #0B2545; box-shadow: 0 2px 8px rgba(0,0,0,.15); text-align: center; }
 
 /* 연계 카드 */
 .link-card { position: absolute; left: 12px; right: 12px; bottom: 112px; z-index: 500; display: flex; flex-direction: column; gap: 8px; }
-.lc-loading { background: #fff; border-radius: 14px; padding: 12px; font-size: 13px; color: #6F86A6; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.lc-loading { background: #fff; border-radius: 14px; padding: 12px; font-size: 13px; color: #24497E; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
 .lc-main, .lc-sub, .lc-mini { background: #fff; border-radius: 16px; box-shadow: 0 2px 10px rgba(0,0,0,.12); display: flex; align-items: center; gap: 10px; }
 .lc-main div, .lc-sub div, .lc-mini div { display: flex; flex-direction: column; }
 .lc-main { padding: 12px 14px; }
 .lc-main > div:nth-child(2) { flex: 1; }
-.lc-main small { font-size: 12px; color: #6F86A6; }
+.lc-main small { font-size: 12px; color: #24497E; }
 .lc-main b { font-size: 19px; color: #0B2545; }
 .lc-time { align-items: flex-end; }
 .lc-time b { font-size: 16px; color: #0B2545; }
 .lc-row { display: flex; gap: 8px; }
 .lc-sub { flex: 2; padding: 9px 12px; }
-.lc-sub small, .lc-mini small { font-size: 11px; color: #6F86A6; }
+.lc-sub small, .lc-mini small { font-size: 12px; color: #24497E; }
 .lc-sub b { font-size: 14px; color: #0B2545; }
 .lc-mini { flex: 1; padding: 9px 10px; }
 .lc-mini b { font-size: 12px; color: #24497E; }
 .lc-ico { flex: none; display: flex; align-items: center; justify-content: center; }
 .lc-ico.subway { width: 42px; height: 42px; border-radius: 12px; background: #0B2545; font-size: 22px; }
 .lc-ico.tashu { width: 30px; height: 30px; border-radius: 50%; background: #1E5AA8; padding: 4px; }
-.lc-ico.bus { width: 14px; height: 14px; border-radius: 50%; background: #6F86A6; }
+.lc-ico.bus { width: 14px; height: 14px; border-radius: 50%; background: #24497E; }
 
 /* 하단 버튼: 길찾기 가장 크게 */
 .bottom-bar { position: absolute; left: 0; right: 0; bottom: 0; z-index: 500; height: 100px; display: flex; align-items: center; justify-content: space-between; padding: 0 30px 8px; background: #fff; border-radius: 22px 22px 0 0; box-shadow: 0 -2px 12px rgba(0,0,0,.08); }
 .side-btn { width: 54px; height: 54px; border-radius: 16px; background: #F5F8FD; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .side-btn span { width: 24px; height: 24px; font-size: 20px; line-height: 24px; }
-.side-btn small { font-size: 10px; color: #24497E; font-weight: 600; }
+.side-btn small { font-size: 12px; color: #24497E; font-weight: 600; }
 .nav-btn { width: 84px; height: 84px; margin-top: -40px; border-radius: 50%; background: #0B2545; color: #fff; border: 5px solid #fff; box-shadow: 0 6px 16px rgba(0,0,0,.25); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
 .nav-btn span { font-size: 26px; transform: rotate(-45deg); }
 .nav-btn small { font-size: 12px; font-weight: 700; }
@@ -79,7 +79,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .route-head { position: absolute; top: 14px; left: 14px; right: 14px; z-index: 500; display: flex; align-items: center; gap: 12px; background: #fff; border-radius: 14px; padding: 10px 12px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
 .route-head div { display: flex; flex-direction: column; }
 .route-head b { font-size: 16px; }
-.route-head small { color: #6F86A6; font-size: 12px; }
+.route-head small { color: #24497E; font-size: 12px; }
 .route-head.static { box-shadow: none; background: #DCE8F8; }
 .back { width: 36px; height: 36px; border-radius: 10px; background: #F5F8FD; font-size: 18px; text-align: center; }
 .sheet { position: absolute; left: 0; right: 0; bottom: 0; z-index: 500; background: #fff; border-radius: 22px 22px 0 0; padding: 16px 14px 22px; box-shadow: 0 -4px 16px rgba(0,0,0,.1); display: flex; flex-direction: column; gap: 10px; max-height: 60%; overflow: auto; }
@@ -89,19 +89,19 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .plan.alt { background: #F5F8FD; padding: 10px 12px; }
 .plan.on { border-color: #0B2545; }
 .plan-top { display: flex; align-items: center; gap: 8px; }
-.badge { background: #0B2545; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
+.badge { background: #0B2545; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 10px; }
 .plan-title { flex: 1; font-weight: 700; }
 .plan.best .plan-title { font-size: 16px; }
 .plan.alt .plan-title { font-size: 13px; color: #24497E; }
 .plan.best .plan-total { font-size: 26px; font-weight: 800; color: #0B2545; }
 .plan.alt .plan-total { font-size: 16px; font-weight: 700; color: #24497E; }
 .legs { display: flex; gap: 3px; }
-.leg { min-width: 54px; font-size: 11px; font-weight: 600; padding: 4px 6px; border-radius: 6px; color: #fff; white-space: nowrap; overflow: hidden; }
+.leg { min-width: 54px; font-size: 12px; font-weight: 600; padding: 4px 6px; border-radius: 6px; color: #fff; white-space: nowrap; overflow: hidden; }
 .leg.bike { background: #1E5AA8; }
 .leg.subway { background: #0B2545; }
 .leg.walk { background: #C5D6EE; }
-.plan.alt .leg { padding: 2px 6px; font-size: 10px; }
-.plan-desc { font-size: 11px; color: #6F86A6; }
+.plan.alt .leg { padding: 2px 6px; font-size: 12px; }
+.plan-desc { font-size: 12px; color: #24497E; }
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .chip { padding: 7px 11px; border-radius: 18px; background: #F5F8FD; font-size: 12px; }
 .chip.on { background: #0B2545; color: #fff; }
@@ -109,7 +109,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .plain { background: #FFFFFF; }
 .placeholder { height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 30px; }
 .ph-ico { width: 80px; height: 80px; }
-.placeholder small { color: #6F86A6; }
+.placeholder small { color: #24497E; }
 .map-fail { display: none; position: absolute; left: 24px; right: 24px; top: 38%; z-index: 450; background: #fff; border-radius: 16px; padding: 18px; text-align: center; box-shadow: 0 4px 16px rgba(0,0,0,.15); font-size: 13px; color: #24497E; }
 .map-fail > b { font-size: 16px; color: #0B2545; }
 .map-failed .map-fail { display: block; }
@@ -125,14 +125,14 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .lbl-subway { color: #0B2545; }
 .mk-tashu { background: #1E5AA8; border: 2px solid #0B2545; }
 .lbl-tashu { color: #0B2545; }
-.mk-bus { background: #FFFFFF; border: 2px solid #6F86A6; }
+.mk-bus { background: #FFFFFF; border: 2px solid #24497E; }
 .lbl-bus { color: #24497E; }
 .recenter { color: #0B2545; }
 .lc-main b { color: #0B2545; }
 .lc-time b { color: #0B2545; background: #1E5AA8; padding: 2px 8px; border-radius: 8px; }
 .lc-ico.subway { background: #0B2545; }
 .lc-ico.tashu { background: #1E5AA8; border: 2px solid #0B2545; }
-.lc-ico.bus { background: #FFFFFF; border: 2px solid #6F86A6; }
+.lc-ico.bus { background: #FFFFFF; border: 2px solid #24497E; }
 .lc-sub b { color: #0B2545; }
 .nav-btn { background: #1E5AA8; color: #0B2545; border-color: #0B2545; box-shadow: 0 6px 16px rgba(0,0,0,.25); }
 .side-btn { background: #F5F8FD; }
@@ -147,7 +147,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .w-warn { background: #1E5AA8; }
 .toast { background: rgba(11,37,69,.85); }
 .route-head.static { background: #1E5AA8; }
-.maplibregl-ctrl-attrib, .leaflet-control-attribution { font-size: 9px; }
+.maplibregl-ctrl-attrib, .leaflet-control-attribution { font-size: 12px; }
 .mk-subway { padding: 6px; }
 .lc-ico.subway { padding: 9px; }
 .dest-pin { width: 22px; height: 22px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #0B2545; border: 4px solid #1E5AA8; filter: none; }
@@ -175,10 +175,10 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .stats { display: flex; text-align: center; }
 .stats div { flex: 1; display: flex; flex-direction: column; gap: 4px; }
 .stats b { font-size: 26px; }
-.stats small { font-size: 12px; color: #6F86A6; }
+.stats small { font-size: 12px; color: #24497E; }
 .hist { display: flex; justify-content: space-between; gap: 10px; padding: 12px 0; border-top: 1px solid #E8EFF9; font-size: 14px; }
 .hist:first-of-type { border-top: none; padding-top: 2px; }
-.hist small { flex: none; color: #6F86A6; font-size: 13px; }
+.hist small { flex: none; color: #24497E; font-size: 13px; }
 .setting { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; font-size: 15px; }
 .sw { width: 52px; height: 30px; border-radius: 15px; background: #C5D6EE; position: relative; transition: background .2s; }
 .sw i { position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #FFFFFF; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: left .2s; }
@@ -190,19 +190,19 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .band-bar { position: absolute; top: 60px; left: 12px; right: 12px; z-index: 500; display: flex; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 16px; padding: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
 .band-seg { flex: 1; display: flex; gap: 4px; }
 .band-seg button { flex: 1; border-radius: 11px; padding: 7px 2px; background: none; display: flex; flex-direction: column; align-items: center; font-size: 14px; font-weight: 800; color: #24497E; text-align: center; }
-.band-seg button small { font-size: 10px; font-weight: 600; color: #6F86A6; }
+.band-seg button small { font-size: 12px; font-weight: 600; color: #24497E; }
 .band-seg button[aria-pressed="true"] { background: #0B2545; color: #FFFFFF; }
 .band-seg button[aria-pressed="true"] small { color: #1E5AA8; }
-.band-legend { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; font-size: 11px; color: #24497E; }
+.band-legend { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; font-size: 12px; color: #24497E; }
 .band-legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
 .band-legend i { width: 16px; height: 5px; border-radius: 3px; display: inline-block; }
-.lg-2 { background: #6F86A6; } .lg-3 { background: #0B2545; }
+.lg-2 { background: #24497E; } .lg-3 { background: #0B2545; }
 .toast { top: 124px; }
 .route-band .band-bar { top: 84px; }
 
 /* ===== 배지 버튼 (지도 왼쪽) ===== */
 .badge-fab { position: absolute; left: 12px; bottom: 262px; z-index: 500; width: 62px; height: 66px; border-radius: 18px; background: #FFFFFF; box-shadow: 0 2px 10px rgba(0,0,0,.15); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; text-align: center; }
-.badge-fab small { font-size: 11px; font-weight: 800; }
+.badge-fab small { font-size: 12px; font-weight: 800; }
 
 /* ===== 배지 화면 ===== */
 .bdg-count { background: #1E5AA8; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 12px; }
@@ -213,24 +213,24 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .bdg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
 .bdg { background: #FFFFFF; border: 1px solid #E8EFF9; border-radius: 18px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
 .bdg svg { width: 76px; height: 85px; }
-.bdg b { font-size: 13px; color: #6F86A6; }
-.bdg small { font-size: 11px; color: #6F86A6; }
+.bdg b { font-size: 13px; color: #24497E; }
+.bdg small { font-size: 12px; color: #24497E; }
 .bdg.on { border: 2px solid #0B2545; }
 .bdg.on b { color: #0B2545; }
 
 /* ===== 길찾기: 혼잡 정보 + 동물 코스 ===== */
-.plan-cong { font-size: 11px; font-weight: 700; color: #0B2545; }
+.plan-cong { font-size: 12px; font-weight: 700; color: #0B2545; }
 .crs-title { font-size: 15px; font-weight: 800; margin-top: 4px; }
 .crs-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
 .crs { flex: none; width: 92px; border: 1px solid #E8EFF9; background: #FFFFFF; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
 .crs b { font-size: 12px; }
-.crs small { font-size: 10px; color: #6F86A6; }
+.crs small { font-size: 12px; color: #24497E; }
 .crs.on { border: 2px solid #0B2545; background: #DCE8F8; }
 .course-card { background: #DCE8F8; border: 2px solid #0B2545; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
 .cc-head { display: flex; gap: 12px; align-items: center; }
 .cc-head div { display: flex; flex-direction: column; }
 .cc-head b { font-size: 17px; }
-.cc-head small { font-size: 11px; color: #24497E; }
+.cc-head small { font-size: 12px; color: #24497E; }
 .cc-sum { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: #24497E; }
 .cc-sum .big { font-size: 26px; font-weight: 800; color: #0B2545; }
 .cc-btn { width: 100%; padding: 12px; border-radius: 12px; background: #0B2545; color: #1E5AA8; font-weight: 800; font-size: 15px; text-align: center; }
@@ -238,7 +238,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .cc-ride { display: flex; flex-direction: column; gap: 6px; }
 .cc-ride .pass-bar { margin: 0; background: #FFFFFF; }
 .cc-ride small { font-size: 12px; }
-.start-pin { background: #0B2545; color: #1E5AA8; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 10px; text-align: center; white-space: nowrap; }
+.start-pin { background: #0B2545; color: #1E5AA8; font-size: 12px; font-weight: 800; padding: 3px 8px; border-radius: 10px; text-align: center; white-space: nowrap; }
 .won { display: flex; align-items: center; gap: 12px; background: #1E5AA8; border-radius: 14px; padding: 12px; }
 .won div { display: flex; flex-direction: column; }
 .won b { font-size: 16px; }
@@ -262,14 +262,14 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .home-top { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 600; display: flex; flex-direction: column; gap: 8px; }
 .search { height: 52px; width: 100%; background: #FFFFFF; border-radius: 16px; box-shadow: 0 3px 12px rgba(0,0,0,.16); display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 2px solid #0B2545; }
 .search-modes { display: flex; gap: 4px; padding-right: 10px; border-right: 1px solid #C5D6EE; }
-.search-ph { flex: 1; font-size: 16px; font-weight: 700; color: #6F86A6; }
+.search-ph { flex: 1; font-size: 16px; font-weight: 700; color: #24497E; }
 .home-sub { display: flex; gap: 6px; align-items: stretch; }
 .home-sub .weather { position: static; padding: 4px 10px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.12); flex: none; }
 .home-sub .weather b { font-size: 13px; }
 .band-bar.compact { position: static; flex: 1; padding: 3px; border-radius: 14px; gap: 4px; }
 .band-bar.compact .band-seg button { padding: 4px 2px; font-size: 12px; min-height: 36px; }
-.band-bar.compact .band-seg button small { font-size: 9px; }
-.band-bar.compact .band-legend { font-size: 10px; gap: 2px; padding-right: 4px; }
+.band-bar.compact .band-seg button small { font-size: 12px; }
+.band-bar.compact .band-legend { font-size: 12px; gap: 2px; padding-right: 4px; }
 .home-top + .toast, .toast { top: 170px; }
 .recenter { top: auto; bottom: 330px; }
 .route-band { position: absolute; top: 132px; left: 12px; right: 12px; z-index: 600; }
@@ -278,7 +278,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 /* 대여 타이머 */
 .timer { display: flex; align-items: center; gap: 10px; background: #1E5AA8; border: 2px solid #0B2545; border-radius: 14px; padding: 6px 12px; min-height: 44px; text-align: left; }
 .timer span { flex: 1; display: flex; flex-direction: column; }
-.timer small { font-size: 11px; font-weight: 700; }
+.timer small { font-size: 12px; font-weight: 700; }
 .timer b { font-size: 18px; font-variant-numeric: tabular-nums; }
 .timer em { font-style: normal; font-weight: 800; font-size: 13px; background: #0B2545; color: #1E5AA8; padding: 6px 10px; border-radius: 10px; }
 .timer.warn { background: #0B2545; color: #1E5AA8; animation: blink 1s infinite; }
@@ -295,16 +295,16 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .rent-btn b { font-size: 16px; }
 .rent-btn small { font-size: 12px; color: #24497E; }
 .rent-btn .lc-ico.tashu { background: #FFFFFF; border-radius: 10px; width: 36px; height: 36px; padding: 6px; }
-.lc-main small { font-size: 11px; }
+.lc-main small { font-size: 12px; }
 
 /* 아래 버튼: 길찾기 64px 가장 크게, 양옆 작게 */
 .bottom-bar { height: 84px; }
 .side-btn { width: 48px; height: 48px; background: none; gap: 2px; }
-.side-btn small { font-size: 10px; }
+.side-btn small { font-size: 12px; }
 .nav-btn { width: 64px; height: 64px; margin-top: -44px; border-width: 4px; }
 .nav-ico { position: relative; display: block; width: 30px; height: 30px; }
 .nav-train { position: absolute; right: -10px; bottom: -6px; background: #0B2545; border-radius: 50%; padding: 2px; width: 20px !important; height: 20px !important; border: 2px solid #1E5AA8; }
-.nav-btn small { font-size: 11px; margin-top: 2px; }
+.nav-btn small { font-size: 12px; margin-top: 2px; }
 
 /* 지도 표시 */
 .mk-subway { width: 28px; height: 28px; border-radius: 50%; padding: 5px; border: 2px solid #FFFFFF; }
@@ -316,7 +316,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .pop { display: flex; flex-direction: column; gap: 4px; font-family: inherit; }
 .pop > b { font-size: 15px; }
 .pop-row { font-size: 12px; color: #24497E; }
-.pop-row.small { font-size: 11px; color: #6F86A6; }
+.pop-row.small { font-size: 12px; color: #24497E; }
 .pop-btns { display: flex; gap: 6px; margin-top: 6px; }
 .pop-btns button { flex: 1; min-height: 40px; border-radius: 10px; font-weight: 800; background: #0B2545; color: #1E5AA8; text-align: center; }
 .pop-btns button + button { background: #1E5AA8; color: #0B2545; }
@@ -335,9 +335,9 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .search-sheet input { height: 48px; border-radius: 12px; border: 2px solid #0B2545; padding: 0 14px; font-size: 16px; font-family: inherit; margin-bottom: 6px; }
 .res { min-height: 48px; text-align: left; display: flex; flex-direction: column; justify-content: center; padding: 6px 8px; border-bottom: 1px solid #E8EFF9; background: none; }
 .res b { font-size: 15px; }
-.res small { font-size: 12px; color: #6F86A6; }
+.res small { font-size: 12px; color: #24497E; }
 .res.close { text-align: center; align-items: center; border: none; font-weight: 800; }
-.note { font-size: 12px; color: #6F86A6; margin: 6px 0; line-height: 1.5; }
+.note { font-size: 12px; color: #24497E; margin: 6px 0; line-height: 1.5; }
 
 /* 세 경로 탭 */
 .rtabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
@@ -345,10 +345,10 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .rtabs button[aria-pressed="true"] { background: #DCE8F8; border-color: #0B2545; }
 .rtabs button:disabled { opacity: .45; }
 .rt-name { font-size: 12px; font-weight: 800; display: flex; gap: 4px; align-items: center; }
-.rt-name em { font-style: normal; font-size: 10px; background: #0B2545; color: #1E5AA8; padding: 1px 5px; border-radius: 6px; }
+.rt-name em { font-style: normal; font-size: 12px; background: #0B2545; color: #1E5AA8; padding: 1px 5px; border-radius: 6px; }
 .rtabs b { font-size: 18px; }
 .rt-badges { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
-.rt-badges i { font-style: normal; font-size: 10px; font-weight: 700; background: #1E5AA8; padding: 1px 5px; border-radius: 6px; }
+.rt-badges i { font-style: normal; font-size: 12px; font-weight: 700; background: #1E5AA8; padding: 1px 5px; border-radius: 6px; }
 .plan-detail { display: flex; flex-direction: column; gap: 10px; }
 .seg2 { display: flex; gap: 4px; background: #F5F8FD; border-radius: 12px; padding: 4px; margin-bottom: 4px; }
 .seg2 button { flex: 1; min-height: 40px; border-radius: 9px; font-weight: 800; font-size: 13px; background: none; text-align: center; }
@@ -361,10 +361,10 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .mb-bike > i { background: #1E5AA8; border: 1.5px solid #0B2545; }
 .mb-subway > i { background: #0B2545; }
 .mb-bus > i { background: #24497E; }
-.mb-walk > i { background: repeating-linear-gradient(90deg, #6F86A6 0 4px, transparent 4px 7px); }
+.mb-walk > i { background: repeating-linear-gradient(90deg, #24497E 0 4px, transparent 4px 7px); }
 .mb-ico { position: absolute; top: -24px; left: 0; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
-.mb-ico small { font-size: 11px; font-weight: 700; }
-.mb-x { position: absolute; right: -10px; top: -3px; z-index: 2; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; border: 2px solid #0B2545; font-style: normal; font-size: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.mb-ico small { font-size: 12px; font-weight: 700; }
+.mb-x { position: absolute; right: -10px; top: -3px; z-index: 2; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; border: 2px solid #0B2545; font-style: normal; font-size: 12px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
 .pd-sum { display: flex; align-items: baseline; gap: 10px; }
 .pd-sum .big { font-size: 28px; font-weight: 900; }
 .pd-sum .arrive { font-size: 14px; font-weight: 700; color: #24497E; }
@@ -388,7 +388,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .arrived b { font-size: 18px; }
 .arrived small { font-size: 13px; }
 .route-info { display: flex; flex-direction: column; gap: 4px; }
-.route-info small { color: #6F86A6; font-size: 13px; }
+.route-info small { color: #24497E; font-size: 13px; }
 .sheet { max-height: 62%; }
 
 /* 대여 창 */
@@ -407,7 +407,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .err { color: #0B2545; background: #DCE8F8; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 700; margin: 0; }
 .ret-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 4px; min-height: 56px; border-top: 1px solid #E8EFF9; background: none; text-align: left; }
 .ret-row span { display: flex; flex-direction: column; }
-.ret-row small { color: #6F86A6; font-size: 12px; }
+.ret-row small { color: #24497E; font-size: 12px; }
 .ret-row em { font-style: normal; font-weight: 800; background: #1E5AA8; padding: 8px 12px; border-radius: 10px; }
 .rent-now { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
 .rent-now b { font-size: 20px; }
@@ -421,10 +421,10 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .near-chip { position: absolute; left: 12px; bottom: 100px; z-index: 500; display: flex; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 22px; padding: 6px 12px 6px 6px; min-height: 44px; box-shadow: 0 2px 10px rgba(0,0,0,.15); font-size: 13px; }
 .near-chip .lc-ico.subway { width: 30px; height: 30px; border-radius: 50%; padding: 6px; }
 .near-chip b { font-size: 14px; }
-.near-chip span:not(.lc-ico) { color: #6F86A6; }
+.near-chip span:not(.lc-ico) { color: #24497E; }
 .near-chip em { font-style: normal; font-weight: 800; font-size: 12px; background: #1E5AA8; padding: 4px 8px; border-radius: 12px; }
 .st-fab { position: absolute; right: 12px; bottom: 100px; z-index: 500; width: 56px; height: 56px; border-radius: 16px; background: #1E5AA8; border: 2px solid #0B2545; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,.15); }
-.st-fab small { font-size: 10px; font-weight: 800; }
+.st-fab small { font-size: 12px; font-weight: 800; }
 .st-fab.route-st { top: 186px; bottom: auto; }
 .recenter { bottom: 166px; }
 .st-clear { position: absolute; left: 50%; transform: translateX(-50%); top: 128px; z-index: 550; background: #0B2545; color: #1E5AA8; border-radius: 16px; padding: 8px 14px; font-size: 13px; font-weight: 800; min-height: 36px; max-width: 80%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }
@@ -433,7 +433,7 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .station-modal { max-height: 80%; }
 .st-search { height: 48px; border-radius: 12px; border: 2px solid #0B2545; padding: 0 14px; font-size: 15px; font-family: inherit; }
 .st-list { overflow-y: auto; display: flex; flex-direction: column; }
-.xf-tag { font-style: normal; font-size: 10px; background: #0B2545; color: #1E5AA8; padding: 1px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
+.xf-tag { font-style: normal; font-size: 12px; background: #0B2545; color: #1E5AA8; padding: 1px 6px; border-radius: 6px; margin-left: 6px; vertical-align: middle; }
 .st-clear { top: auto; bottom: 156px; left: 12px; transform: none; }
 
 /* ===== v4: 주황 단색 + 글자 겹침 줄이기 ===== */
@@ -475,3 +475,15 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 /* 길찾기 화면 오른쪽 대여소 버튼은 시간대 줄 아래로 */
 .st-fab.route-st { top: 184px; }
 .route-timer { top: 250px; }
+
+/* ===== v6: 가독성 — 글자는 진한 남색, 최소 12px ===== */
+body, .screen, .modal, .sheet { color: #0B2545; }
+.weather, .weather .w-l, .near-chip span, .res small, .note, .pop-row, .pop-row.small, .hist small, .stats small, .cc-head small, .bdg small, .crs small, .lc-main small, .route-head small, .pd-meta, .pd-sum .arrive, .rt-name, .band-seg button small, .band-legend { color: #0B2545 !important; }
+.search-ph { color: #24497E; font-size: 17px; }
+.band-seg button { font-size: 15px; }
+.band-seg button[aria-pressed="true"] small { color: #FFFFFF !important; }
+.cong-toggle { font-size: 15px; color: #0B2545; }
+.near-chip b { font-size: 16px; } .near-chip { font-size: 14px; }
+.side-btn small, .nav-btn small, .st-fab small { font-size: 12px; font-weight: 800; }
+.leaflet-tooltip { font-size: 13px; font-weight: 700; color: #0B2545; }
+.leaflet-popup-content { color: #0B2545; }

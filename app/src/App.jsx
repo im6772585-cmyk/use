@@ -213,8 +213,8 @@ function useMap(ref, center) {
       glMap.addSource('subway', { type: 'geojson', data: { type: 'FeatureCollection', features: SUBWAY.map((st) => ({ type: 'Feature', properties: { name: st.name }, geometry: { type: 'Point', coordinates: [st.pos[1], st.pos[0]] } })) } });
       glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 4, 15, 9], 'circle-color': C.K, 'circle-stroke-color': C.W, 'circle-stroke-width': 2.5 } });
       glMap.addLayer({ id: 'subway-name', type: 'symbol', source: 'subway', minzoom: 12,
-        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 11, 16, 14], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.1, 'text-padding': 6, 'symbol-sort-key': 0 },
-        paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 2.5 } });
+        layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.1, 'text-padding': 6, 'symbol-sort-key': 0 },
+        paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } });
     };
     if (glMap.isStyleLoaded()) addSubway(); else glMap.once('load', addSubway);
     setTimeout(() => { if (!ok && !glMap.loaded()) box()?.classList.add('map-failed'); }, 20000);
