@@ -955,6 +955,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                   )}
                   <ModeBar legs={p.legs} />
                   <div className="pd-sum"><span className="big">{p.min}분</span><span className="arrive">{hhmm(p.arrive)} 도착</span></div>
+                  {p.approx && <div className="approx-note">길찾기 서버가 응답하지 않아 일부 구간을 직선으로 표시했어요. 잠시 뒤 다시 시도해 주세요.</div>}
                   <div className="pd-stats">
                     <div><small>환승</small><b>{p.transfers}회</b></div>
                     <div><small>걷기</small><b>{p.walkM >= 1000 ? `${(p.walkM / 1000).toFixed(1)}km` : `${p.walkM}m`}</b></div>

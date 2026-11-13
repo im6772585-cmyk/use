@@ -667,3 +667,4 @@ body, .screen, .modal, .sheet { color: #15273E; }
 /* 위치 찍기 핀 (물방울 핀) */
 .loc-pin { width: 34px; height: 44px; filter: drop-shadow(0 2px 3px rgba(21,39,62,.35)); }
 .loc-pin svg { width: 100%; height: 100%; display: block; }
+.approx-note { margin: 4px 0 10px; padding: 10px 12px; border-radius: 12px; background: #EEF6C4; color: #15273E; font-size: 13px; font-weight: 700; }

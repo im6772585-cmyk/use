@@ -60,17 +60,51 @@ const lineKm = (geo) => { const c = geo.coordinates; let k = 0; for (let i = 1; 
 const line = (a, b) => ({ type: 'LineString', coordinates: [[a[1], a[0]], [b[1], b[0]]] });
 // 같은 출발·도착 경로는 한 번만 묻고 기억해 둠 (시간대·기준을 바꿔도 다시 기다리지 않게)
 const ROUTE_CACHE = new Map();
+// 동시에 보내는 길찾기 요청 수 제한 (무료 서버가 막지 않게)
+let inFlight = 0; const waitQ = [];
+const slot = () => (inFlight < 3 ? (inFlight++, Promise.resolve()) : new Promise((r) => waitQ.push(r)));
+const release = () => { const n = waitQ.shift(); if (n) n(); else inFlight--; };
+function decode6(str) {
+  let i = 0, lat = 0, lon = 0; const out = [];
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let sh = 0, res = 0, b;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k === 0) lat += d; else lon += d;
+    }
+    out.push([lon / 1e6, lat / 1e6]);
+  }
+  return out;
+}
+// 1순위 Valhalla (오르막·산길 회피 설정 가능), 2순위 OSRM
+const VH = { bike: 'bicycle', foot: 'pedestrian', car: 'auto' };
+const VH_OPT = { bicycle: { bicycle_type: 'City', use_hills: 0.05, use_roads: 0.4, avoid_bad_surfaces: 0.9 }, pedestrian: { use_hills: 0.1 }, auto: {} };
+async function valhalla(profile, a, b, alts) {
+  const c = VH[profile];
+  const body = { locations: [{ lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }], costing: c, costing_options: { [c]: VH_OPT[c] }, units: 'kilometers', ...(alts ? { alternates: 2 } : {}) };
+  const r = await fetch('https://valhalla1.openstreetmap.de/route?json=' + encodeURIComponent(JSON.stringify(body)), { signal: AbortSignal.timeout(9000) });
+  const j = await r.json();
+  if (!j.trip) throw new Error('no route');
+  const conv = (t) => ({ geo: { type: 'LineString', coordinates: decode6(t.legs[0].shape) }, exact: true, steps: t.legs[0].maneuvers.map((m) => ({ name: (m.street_names || [])[0] || '', km: m.length })) });
+  return [j.trip, ...(j.alternates || []).map((x) => x.trip)].map(conv);
+}
+async function osrmRaw(profile, a, b, alts) {
+  const r = await fetch(`https://routing.openstreetmap.de/routed-${profile}/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson&steps=true${alts ? '&alternatives=3' : ''}`, { signal: AbortSignal.timeout(8000) });
+  const j = await r.json();
+  if (!j.routes?.length) throw new Error('no route');
+  return j.routes.map((x) => ({ geo: x.geometry, exact: true, steps: x.legs.flatMap((lg) => lg.steps.map((st) => ({ name: st.name || '', km: st.distance / 1000 }))) }));
+}
 function osrm(profile, a, b, alts = false) {
   const k = `${profile}|${a[0].toFixed(5)},${a[1].toFixed(5)}|${b[0].toFixed(5)},${b[1].toFixed(5)}|${alts}`;
   if (ROUTE_CACHE.has(k)) return ROUTE_CACHE.get(k);
   const p = (async () => {
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        const r = await fetch(`https://routing.openstreetmap.de/routed-${profile}/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson&steps=true${alts ? '&alternatives=3' : ''}`, { signal: AbortSignal.timeout(9000) });
-        const j = await r.json();
-        if (j.routes?.length) return j.routes.map((x) => ({ geo: x.geometry, exact: true, steps: x.legs.flatMap((lg) => lg.steps.map((st) => ({ name: st.name || '', km: st.distance / 1000 }))) }));
-      } catch { /* 한 번 더 시도 */ }
-    }
+    await slot();
+    try {
+      for (const fn of [valhalla, osrmRaw, valhalla]) {
+        try { return await fn(profile, a, b, alts); } catch { /* 다음 서버로 */ }
+      }
+    } finally { release(); }
     ROUTE_CACHE.delete(k); // 실패한 결과는 기억하지 않음
     return [{ geo: line(a, b), exact: false }];
   })();
@@ -142,6 +176,7 @@ function finish(p, band) {
   p.kcal = Math.round(p.bikeKm * KCAL_PER_KM);
   p.congKm = p.legs.reduce((a, l) => a + (l.congKm || 0), 0);
   p.band = band;
+  p.approx = p.legs.some((l) => l.exact === false && l.km > 0.15);
   return p;
 }
 
