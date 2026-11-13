@@ -389,6 +389,100 @@ function Placeholder({ title, icon, desc, back }) {
   );
 }
 
+// ---------- 내 정보 ----------
+const PASS = { start: '2026-06-01', end: '2027-05-31' };
+const MONTH_STATS = { label: '10월 라이딩', km: 42.6, count: 14, co2: 6.1 };
+const HISTORY = [
+  { route: '둔산동 목련아파트 → 엑스포과학공원', date: '10.27', km: 3.1 },
+  { route: '탄방동 한사랑병원 → 갑천 자전거길', date: '10.24', km: 2.4 },
+  { route: '대전역 → 중앙로역', date: '10.20', km: 1.6 },
+];
+const DATA_SOURCES = [
+  '대전광역시 도로별 택시 평균 통행량 및 속도 (2025년 1–12월, 도로 링크 9,615개)',
+  '대전 도시철도 1호선 역별 시간대 승하차 (2026년 1–9월 평일)',
+  '대전시 행정구역별 일반택시 승하차 통계 (2025년)',
+  '타슈 대여소 현황 (2026.06.24, 1,377곳)',
+  '타슈 대여이력 (2025.08–2026.03, 3,978,584건) — 대여소 실제 좌표, 시간대별 대여량, 많이 타는 구간',
+  '행정동 경계: 통계청 SGIS 자료를 가공한 vuski/admdongkor (2026.10.01, CC BY 4.0)',
+];
+const SETTINGS = [
+  ['voice', '음성 안내'],
+  ['avoid', '혼잡 구간 자동 회피'],
+  ['returnAlert', '반납 알림 (50분 경과 시)'],
+];
+function loadSettings() {
+  try { return { voice: true, avoid: true, returnAlert: true, ...JSON.parse(localStorage.getItem('tashu-settings') || '{}') }; }
+  catch { return { voice: true, avoid: true, returnAlert: true }; }
+}
+
+function MyInfo({ back }) {
+  const [set, setSet] = useState(loadSettings);
+  const toggle = (k) => setSet((s) => {
+    const n = { ...s, [k]: !s[k] };
+    try { localStorage.setItem('tashu-settings', JSON.stringify(n)); } catch { /* 저장 불가 환경 */ }
+    return n;
+  });
+  const day = 86400000;
+  const today = new Date(new Date().toDateString());
+  const start = new Date(PASS.start), end = new Date(PASS.end);
+  const left = Math.max(0, Math.ceil((end - today) / day));
+  const progress = Math.min(1, Math.max(0, (today - start) / (end - start)));
+  const fmt = (d) => d.replaceAll('-', '.');
+
+  return (
+    <div className="screen info">
+      <header className="info-head"><button className="back" onClick={back}>←</button><b>내 정보</b></header>
+      <div className="info-body">
+        <section className="card icon-card">
+          <div className="app-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
+          <div>
+            <b>타슈 네비 앱 아이콘</b>
+            <p>휴대폰 브라우저에서 이 페이지를 연 뒤 공유 → <b>홈 화면에 추가</b>를 누르면 타슈 아이콘으로 바탕화면에 생겨요.</p>
+          </div>
+        </section>
+
+        <section className="card pass-card">
+          <div className="pass-top"><b>1년 이용권</b><span>D-{left}</span></div>
+          <div className="pass-bar"><div style={{ width: `${progress * 100}%` }} /></div>
+          <small>{fmt(PASS.start)} ~ {fmt(PASS.end)} · 1회 최대 60분</small>
+        </section>
+
+        <section className="card">
+          <h3>{MONTH_STATS.label}</h3>
+          <div className="stats">
+            <div><b>{MONTH_STATS.km}</b><small>km</small></div>
+            <div><b>{MONTH_STATS.count}</b><small>회 이용</small></div>
+            <div><b>{MONTH_STATS.co2}</b><small>kg CO₂ 절감</small></div>
+          </div>
+        </section>
+
+        <section className="card">
+          <h3>최근 이용 기록</h3>
+          {HISTORY.map((h) => (
+            <div className="hist" key={h.route + h.date}><span>{h.route}</span><small>{h.date} · {h.km}km</small></div>
+          ))}
+        </section>
+
+        <section className="card">
+          <h3>설정</h3>
+          {SETTINGS.map(([k, label]) => (
+            <label className="setting" key={k}>
+              <span>{label}</span>
+              <button role="switch" aria-checked={set[k]} className={set[k] ? 'sw on' : 'sw'} onClick={() => toggle(k)}><i /></button>
+            </label>
+          ))}
+        </section>
+
+        <section className="card data-card">
+          <h3>사용한 데이터</h3>
+          {DATA_SOURCES.map((d) => <p key={d}>· {d}</p>)}
+          <p>대여소 1,408곳은 대여이력의 실제 좌표, 나머지 6곳은 동 경계 안 근사 위치예요. 도로·하천은 대략 좌표예요.</p>
+        </section>
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [screen, setScreen] = useState('splash');
   const loc = useLocation();
@@ -399,7 +493,7 @@ export default function App() {
       {screen === 'home' && <Home loc={loc} go={setScreen} />}
       {screen === 'route' && <RouteScreen loc={loc} back={home} />}
       {screen === 'left' && <Placeholder title="대여소" icon={bikeSvg('#111111')} desc="왼쪽 아래 버튼 화면 (예: 주변 타슈 대여소)" back={home} />}
-      {screen === 'right' && <Placeholder title="내 정보" icon={personSvg()} desc="오른쪽 아래 버튼 화면 (예: 이용 기록·설정)" back={home} />}
+      {screen === 'right' && <MyInfo back={home} />}
     </div>
   );
 }
