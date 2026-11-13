@@ -4,6 +4,7 @@ import 'leaflet/dist/leaflet.css';
 import '@maplibre/maplibre-gl-leaflet';
 import { mapStyle, C } from './mapStyle.js';
 import { COURSES, SUBWAY_LOAD } from './data.js';
+import { BUS } from './busstops.js';
 import { ROAD_LV } from './congestion.js';
 import { ART } from './art.js';
 import { pinSvg, bikeSvg, myLocationHtml, trainSvg, personSvg, busSvg, walkSvg, qrSvg, searchSvg, medalSvg } from './rider.js';
@@ -287,14 +288,12 @@ async function loadBus(center) {
   throw new Error('bus unavailable');
 }
 function useBus(center) {
+  // 제공받은 정류장 자료에서 주변 약 1.5km 안 정류장
   const key = `${center[0].toFixed(3)},${center[1].toFixed(3)}`;
-  const [bus, setBus] = useState({ list: [], loaded: false, failed: false });
-  useEffect(() => {
-    let alive = true;
-    loadBus(key.split(',').map(Number)).then((list) => alive && setBus({ list, loaded: true })).catch(() => alive && setBus({ list: [], loaded: true, failed: true }));
-    return () => { alive = false; };
+  return useMemo(() => {
+    const [la, lo] = key.split(',').map(Number);
+    return { list: BUS.filter((b) => Math.abs(b.pos[0] - la) < 0.014 && Math.abs(b.pos[1] - lo) < 0.017), loaded: true, failed: false };
   }, [key]);
-  return bus;
 }
 
 const TRANSFER_IDS = new Set(TRANSFER.flatMap((t) => t.list.slice(0, 1).map((s) => s.id)));
@@ -309,6 +308,15 @@ const stationPopup = (t) => `
     <div class="pop-btns"><button data-act="from" data-id="${t.id}">출발지로</button><button data-act="to" data-id="${t.id}">목적지로</button></div>
   </div>`;
 
+const busPopup = (b) => `
+  <div class="pop">
+    <b>${b.name}</b>
+    <div class="pop-row">시내버스 정류장 · 번호 ${b.no}${b.type ? ` · ${b.type} 승강장` : ''}</div>
+    <div class="pop-row">${b.addr}</div>
+    <div class="pop-btns"><button data-act="from" data-id="${b.id}">출발지로</button><button data-act="to" data-id="${b.id}">목적지로</button></div>
+  </div>`;
+const findPlace = (id) => (id && id[0] === 'b' ? BUS.find((x) => x.id === id) : TASHU.find((x) => x.id === id));
+
 function useStationLayers(mapRef, bus, onPick) {
   const pickRef = useRef(onPick); pickRef.current = onPick;
   useEffect(() => {
@@ -317,12 +325,12 @@ function useStationLayers(mapRef, bus, onPick) {
     const g = L.layerGroup().addTo(map);
     // 버스정류장: 확대했을 때만 지름 14px
     const busG = L.layerGroup();
-    bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="mk mk-bus"></div>' }) }).bindTooltip(b.name, { direction: 'top' }).addTo(busG));
+    bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="mk mk-bus"></div>' }) }).bindTooltip(b.name, { direction: 'top' }).bindPopup(busPopup(b), { maxWidth: 260, offset: [0, -4] }).addTo(busG));
     const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-sub-lbl', map.getZoom() >= 14); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
     zoomCheck(); map.on('zoomend', zoomCheck);
     const onPop = (e) => {
       e.popup.getElement()?.querySelectorAll('button[data-act]').forEach((btn) => btn.addEventListener('click', () => {
-        const t = TASHU.find((x) => x.id === btn.dataset.id);
+        const t = findPlace(btn.dataset.id); if (!t) return;
         map.closePopup();
         pickRef.current?.(btn.dataset.act, { name: t.name, pos: t.pos });
       }));
@@ -337,8 +345,9 @@ function useSelectedStation(mapRef, sel) {
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !sel) return;
-    const m = L.marker(sel.pos, { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [36, 44], iconAnchor: [18, 42], html: `<div class="st-pin">${bikeSvg('#15273E')}</div>` }) })
-      .bindPopup(stationPopup(sel), { maxWidth: 260, offset: [0, -36], autoPanPaddingTopLeft: [20, 230], autoPanPaddingBottomRight: [20, 120] }).addTo(map);
+    const isBus = sel.kind === 'bus';
+    const m = L.marker(sel.pos, { zIndexOffset: 1200, icon: L.divIcon({ className: '', iconSize: [36, 44], iconAnchor: [18, 42], html: `<div class="st-pin${isBus ? ' bus' : ''}">${isBus ? busSvg('#FFFFFF') : bikeSvg('#15273E')}</div>` }) })
+      .bindPopup(isBus ? busPopup(sel) : stationPopup(sel), { maxWidth: 260, offset: [0, -36], autoPanPaddingTopLeft: [20, 230], autoPanPaddingBottomRight: [20, 120] }).addTo(map);
     map.setView(sel.pos, Math.max(map.getZoom(), 16));
     setTimeout(() => m.openPopup(), 300);
     return () => m.remove();
@@ -346,26 +355,29 @@ function useSelectedStation(mapRef, sel) {
 }
 
 // 대여소 목록: 가까운 순 + 이름 검색. 고르면 그 대여소만 지도에 표시
-function StationPicker({ center, onClose, onSelect }) {
+function StationPicker({ center, onClose, onSelect, kind = 'tashu' }) {
   const [q, setQ] = useState('');
+  const isBus = kind === 'bus';
+  const ALL = isBus ? BUS : TASHU;
   const list = useMemo(() => {
     const k = q.trim();
-    const base = k ? TASHU.filter((t) => t.name.includes(k) || t.dong.includes(k)) : TASHU.filter((t) => Math.abs(t.pos[0] - center[0]) < 0.02 && Math.abs(t.pos[1] - center[1]) < 0.025);
-    return base.map((t) => ({ ...t, d: dist(center, t.pos), xfer: TRANSFER_IDS.has(t.id) })).sort((a, b) => a.d - b.d).slice(0, 40);
-  }, [q, center]);
+    const base = k ? ALL.filter((t) => t.name.includes(k) || (isBus ? t.addr.includes(k) || String(t.no) === k : t.dong.includes(k))) : ALL.filter((t) => Math.abs(t.pos[0] - center[0]) < 0.02 && Math.abs(t.pos[1] - center[1]) < 0.025);
+    return base.map((t) => ({ ...t, d: dist(center, t.pos), xfer: !isBus && TRANSFER_IDS.has(t.id) })).sort((a, b) => a.d - b.d).slice(0, 40);
+  }, [q, center]); // eslint-disable-line react-hooks/exhaustive-deps
+  const nm = isBus ? '버스 정류장' : '타슈 대여소';
   return (
     <div className="modal-bg" onClick={onClose}>
       <div className="modal station-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-head"><b>타슈 대여소</b><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
-        <input className="st-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder="대여소 이름이나 동 이름으로 찾기" />
-        <small className="note">{q ? `검색 결과 ${list.length}곳` : '가까운 대여소부터 보여 드려요'} · 대전 전체 {TASHU.length.toLocaleString()}곳</small>
+        <div className="modal-head"><b>{nm}</b><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
+        <input className="st-search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={isBus ? '정류장 이름·동·번호로 찾기' : '대여소 이름이나 동 이름으로 찾기'} />
+        <small className="note">{q ? `검색 결과 ${list.length}곳` : `가까운 ${isBus ? '정류장' : '대여소'}부터 보여 드려요`} · 대전 전체 {ALL.length.toLocaleString()}곳</small>
         <div className="st-list">
           {list.map((t) => (
             <button key={t.id} className="ret-row" onClick={() => onSelect(t)}>
-              <span><b>{t.name}{t.xfer && <i className="xf-tag">환승</i>}</b><small>{t.dong} · {t.d < 1 ? `${Math.round(t.d * 1000)}m` : `${t.d.toFixed(1)}km`}</small></span><em>지도에서 보기</em>
+              <span><b>{t.name}{t.xfer && <i className="xf-tag">환승</i>}</b><small>{isBus ? `${t.no} · ${t.addr.split(' ').slice(0, 2).join(' ')}` : t.dong} · {t.d < 1 ? `${Math.round(t.d * 1000)}m` : `${t.d.toFixed(1)}km`}</small></span><em>지도에서 보기</em>
             </button>
           ))}
-          {!list.length && <p className="note">찾는 대여소가 없어요.</p>}
+          {!list.length && <p className="note">찾는 {isBus ? '정류장' : '대여소'}이 없어요.</p>}
         </div>
       </div>
     </div>
@@ -558,7 +570,8 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
       {loc.error && !hideToast && <div className="toast">{loc.error}</div>}
       <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
-      <button className="st-fab" onClick={() => { setFollow(false); setPicker(true); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#15273E')} size={22} /><small>대여소</small></button>
+      <button className="st-fab bus-fab" onClick={() => { setFollow(false); setPicker('bus'); }} aria-label="버스 정류장 보기"><Icon svg={busSvg('#FFFFFF')} size={22} /><small>정류장</small></button>
+      <button className="st-fab" onClick={() => { setFollow(false); setPicker('tashu'); }} aria-label="대여소 보기"><Icon svg={bikeSvg('#15273E')} size={22} /><small>대여소</small></button>
       {sel && <button className="st-clear" onClick={() => setSel(null)}>{sel.name} ✕</button>}
       {target ? (
         <div className="target-card">
@@ -573,7 +586,7 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
         {xfer && <em>환승 대여소 ›</em>}
       </button>
       )}
-      {picker && <StationPicker center={loc.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
+      {picker && <StationPicker kind={picker} center={loc.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
 
       <nav className="bottom-bar">
         <button className="side-btn" onClick={() => go('badges')}><Icon svg={medalSvg()} size={24} /><small>배지</small></button>
@@ -851,8 +864,9 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       )}
       {!guide && !course && !editing && <div className="route-band"><BandBar band={band} setBand={setBand} compact legend={false} /></div>}
       {!guide && <div className="route-timer"><RentTimer rent={rent} onReturn={openReturn} /></div>}
-      {!guide && !editing && !course && <button className="st-fab route-st" onClick={() => setPicker(true)} aria-label="대여소 보기"><Icon svg={bikeSvg('#15273E')} size={22} /><small>대여소</small></button>}
-      {picker && <StationPicker center={to ? to.pos : origin.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
+      {!guide && !editing && !course && <button className="st-fab route-st" onClick={() => setPicker('tashu')} aria-label="대여소 보기"><Icon svg={bikeSvg('#15273E')} size={22} /><small>대여소</small></button>}
+      {!guide && !editing && !course && <button className="st-fab route-st bus-fab" onClick={() => setPicker('bus')} aria-label="버스 정류장 보기"><Icon svg={busSvg('#FFFFFF')} size={22} /><small>정류장</small></button>}
+      {picker && <StationPicker kind={picker} center={to ? to.pos : origin.pos} onClose={() => setPicker(false)} onSelect={(t) => { setSel(t); setPicker(false); }} />}
 
       {editing && !guide && (
         <div className="search-sheet">
