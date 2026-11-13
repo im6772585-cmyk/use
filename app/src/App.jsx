@@ -216,7 +216,8 @@ function useMap(ref, center) {
         layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.1, 'text-padding': 6, 'symbol-sort-key': 0 },
         paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } });
     };
-    if (glMap.isStyleLoaded()) addSubway(); else glMap.once('load', addSubway);
+    const tryAdd = () => { try { if (glMap.isStyleLoaded()) addSubway(); } catch { /* 다음 기회에 다시 */ } };
+    tryAdd(); glMap.on('load', tryAdd); glMap.on('styledata', tryAdd); glMap.on('idle', tryAdd);
     setTimeout(() => { if (!ok && !glMap.loaded()) box()?.classList.add('map-failed'); }, 20000);
     mapRef.current = map; force((n) => n + 1);
     return () => map.remove();
