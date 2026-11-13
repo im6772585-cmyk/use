@@ -106,7 +106,7 @@ const defaultBand = () => {
 const NAME_EXPR = ['coalesce', ['get', 'name:ko'], ['get', 'name']];
 const congNames = (band, lv) => Object.keys(ROAD_LV).filter((n) => ROAD_LV[n][band] === lv);
 function applyCongestion(glMap, band, show) {
-  if (!glMap || !glMap.isStyleLoaded()) return false;
+  if (!glMap || !glMap.getSource('omt')) return false;
   if (!glMap.getLayer('cong-case')) {
     const before = glMap.getLayer('road-name') ? 'road-name' : undefined;
     glMap.addLayer({ id: 'cong-case', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['==', 1, 0], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-color': C.W, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 16, 12] } }, before);
@@ -123,9 +123,9 @@ function useCongestion(mapRef, band, dim = false, show = true) {
     const glMap = mapRef.current?._gl;
     if (!glMap) return;
     if (applyCongestion(glMap, band, show)) return;
-    const retry = () => { if (applyCongestion(glMap, band, show)) glMap.off('idle', retry); };
-    glMap.on('idle', retry);
-    return () => glMap.off('idle', retry);
+    const retry = () => { if (applyCongestion(glMap, band, show)) { glMap.off('idle', retry); glMap.off('sourcedata', retry); glMap.off('styledata', retry); } };
+    glMap.on('idle', retry); glMap.on('sourcedata', retry); glMap.on('styledata', retry);
+    return () => { glMap.off('idle', retry); glMap.off('sourcedata', retry); glMap.off('styledata', retry); };
   }, [mapRef, mapRef.current, band, show]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
@@ -238,7 +238,8 @@ function useMap(ref, center) {
         layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.4, 'text-padding': 6, 'symbol-sort-key': 0 },
         paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } });
     };
-    const tryAdd = () => { try { if (glMap.isStyleLoaded()) addSubway(); } catch { /* 다음 기회에 다시 */ } };
+    const tryAdd = () => { try { if (glMap.getSource('omt')) addSubway(); } catch { /* 다음 기회에 다시 */ } };
+    glMap.on('sourcedata', tryAdd);
     tryAdd(); glMap.on('load', tryAdd); glMap.on('styledata', tryAdd); glMap.on('idle', tryAdd);
     setTimeout(() => { if (!ok && !glMap.loaded()) box()?.classList.add('map-failed'); }, 30000);
     mapRef.current = map; force((n) => n + 1);
