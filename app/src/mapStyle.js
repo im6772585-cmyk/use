@@ -1,15 +1,16 @@
-// 파란색 한 가지의 명도·채도 단계만 쓰는 지도 스타일 (남색 글자로 가독성 확보)
+// 팔레트: 남색 #15273E · 청록 #305A52 · 올리브 #A5C04D · 라임 #DDF159 · 세이지 #D4D596 (글자는 남색 + 흰 테두리)
 export const C = {
-  Y: '#1E5AA8',   // 파랑 (진함) - 가장 중요한 것
-  Y2: '#6C9BD8',  // 파랑 (중간)
-  Y3: '#DCE8F8',  // 파랑 (옅음)
-  K: '#0B2545',   // 남색 (가장 어두움) - 글자
-  K2: '#24497E',
-  K3: '#6F86A6',
-  K4: '#C5D6EE',
-  K5: '#E8EFF9',
+  Y: '#305A52',   // 청록 - 가장 중요한 것 (버튼, 내 위치)
+  Y2: '#A5C04D',  // 올리브 - 타슈 경로, 혼잡
+  Y3: '#EEF6C4',  // 연한 라임 - 공원, 강조 바탕
+  L: '#DDF159',   // 라임 - 선택 표시
+  K: '#15273E',   // 남색 - 글자
+  K2: '#15273E',
+  K3: '#305A52',
+  K4: '#D4D596',
+  K5: '#EEEEDD',
   W: '#FFFFFF',
-  W2: '#F7FAFE',
+  W2: '#FAFAF3',
 };
 
 const name = ['coalesce', ['get', 'name:ko'], ['get', 'name']];
@@ -23,8 +24,8 @@ export const mapStyle = {
     { id: 'bg', type: 'background', paint: { 'background-color': C.W2 } },
     { id: 'park', type: 'fill', source: 'omt', 'source-layer': 'park', paint: { 'fill-color': C.Y3, 'fill-opacity': 0.6 } },
     { id: 'wood', type: 'fill', source: 'omt', 'source-layer': 'landcover', filter: cls('wood', 'grass'), paint: { 'fill-color': C.Y3, 'fill-opacity': 0.4 } },
-    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': C.K4 } },
-    { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': C.K5, 'line-width': 2 } },
+    { id: 'water', type: 'fill', source: 'omt', 'source-layer': 'water', paint: { 'fill-color': '#CFE0DA' } },
+    { id: 'waterway', type: 'line', source: 'omt', 'source-layer': 'waterway', paint: { 'line-color': '#CFE0DA', 'line-width': 2 } },
     { id: 'building', type: 'fill', source: 'omt', 'source-layer': 'building', minzoom: 16, paint: { 'fill-color': C.K5, 'fill-opacity': 0.45 } },
 
     // 도로: 작은 길은 흰색, 큰 길은 흰색+회색 테두리, 간선도로는 옅은 노랑
