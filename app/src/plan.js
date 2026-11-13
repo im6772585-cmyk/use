@@ -1,6 +1,7 @@
 // 길찾기: ① 대중교통+타슈 ② 대중교통 ③ 타슈 — 세 경로를 같은 형식으로 계산
 import L from 'leaflet';
-import { CONG, STATIONS, BIKEWAYS } from './data.js';
+import { STATIONS } from './data.js';
+import { ROAD_LV } from './congestion.js';
 
 export const dist = (a, b) => L.latLng(a).distanceTo(L.latLng(b)) / 1000; // km
 const mins = (km, kmh) => Math.max(1, Math.round((km / kmh) * 60));
@@ -39,29 +40,11 @@ const bestTashuNear = (p, radiusKm = 0.4) => {
   return nearest(TASHU, p);
 };
 
-// ---- 도로 혼잡 단계 / 자전거길 판정 (35m 이내 같은 도로로 봄)
-const K = 111000, KX = 111000 * Math.cos(36.35 * Math.PI / 180);
-const xy = ([lat, lon]) => [lon * KX, lat * K];
-const segDist = (p, a, b) => {
-  const dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy || 1;
-  const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len));
-  return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy);
-};
-const CONG_XY = CONG.map(([a, b, , lv]) => ({ a: xy(a), b: xy(b), lv }));
-const BIKE_XY = BIKEWAYS.map(([a, b]) => ({ a: xy(a), b: xy(b) }));
-const levelAt = (p, band) => { let l = 0; for (const s of CONG_XY) if (s.lv[band] > l && segDist(p, s.a, s.b) < 35) l = s.lv[band]; return l; };
-const onBikeway = (p) => BIKE_XY.some((s) => segDist(p, s.a, s.b) < 40);
-
-// 경로선을 구간별로 나눠 혼잡 단계·자전거길 여부를 붙임
-function analyze(geo, band) {
-  const pts = geo.coordinates.map(([lon, lat]) => [lat, lon]);
-  const segs = [];
-  for (let i = 1; i < pts.length; i++) {
-    const l = dist(pts[i - 1], pts[i]);
-    if (l < 0.001) continue;
-    const mid = xy([(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2]);
-    segs.push({ l, lv: levelAt(mid, band), bike: onBikeway(mid) });
-  }
+// ---- 경로가 지나는 도로 이름(경로 서버의 단계별 도로명)으로 혼잡 단계·자전거길 판정
+function analyze(r, band) {
+  const segs = (r.steps && r.steps.length ? r.steps : [{ name: '', km: lineKm(r.geo) }])
+    .filter((st) => st.km > 0.001)
+    .map((st) => ({ l: st.km, lv: ROAD_LV[st.name]?.[band] || 0, bike: /자전거|자전거도로|천변/.test(st.name) }));
   const km = segs.reduce((a, s) => a + s.l, 0);
   return {
     km,
@@ -72,6 +55,7 @@ function analyze(geo, band) {
     cost: { avoid: segs.reduce((a, s) => a + (s.bike ? s.l / 16 : s.l / 13 * (1 + PEN[s.lv])), 0), bike: segs.reduce((a, s) => a + (s.bike ? s.l / 16 : s.l / 13 * 2), 0), short: km },
   };
 }
+const lineKm = (geo) => { const c = geo.coordinates; let k = 0; for (let i = 1; i < c.length; i++) k += dist([c[i - 1][1], c[i - 1][0]], [c[i][1], c[i][0]]); return k; };
 
 const line = (a, b) => ({ type: 'LineString', coordinates: [[a[1], a[0]], [b[1], b[0]]] });
 // 같은 출발·도착 경로는 한 번만 묻고 기억해 둠 (시간대·기준을 바꿔도 다시 기다리지 않게)
@@ -82,9 +66,9 @@ function osrm(profile, a, b, alts = false) {
   const p = (async () => {
     for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        const r = await fetch(`https://routing.openstreetmap.de/routed-${profile}/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson${alts ? '&alternatives=3' : ''}`, { signal: AbortSignal.timeout(7000) });
+        const r = await fetch(`https://routing.openstreetmap.de/routed-${profile}/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson&steps=true${alts ? '&alternatives=3' : ''}`, { signal: AbortSignal.timeout(7000) });
         const j = await r.json();
-        if (j.routes?.length) return j.routes.map((x) => ({ geo: x.geometry, exact: true }));
+        if (j.routes?.length) return j.routes.map((x) => ({ geo: x.geometry, exact: true, steps: x.legs.flatMap((lg) => lg.steps.map((st) => ({ name: st.name || '', km: st.distance / 1000 }))) }));
       } catch { /* 한 번 더 시도 */ }
     }
     ROUTE_CACHE.delete(k); // 실패한 결과는 기억하지 않음
@@ -99,7 +83,7 @@ async function bikeLeg(a, b, band, mode, label) {
   // 후보: 자전거길 위주 경로(bike) + 도로 경로(car) + 생활도로 경로(foot) — 타슈는 차도·자전거길 모두 달릴 수 있음
   const [bk, car, foot] = await Promise.all([osrm('bike', a, b, true), osrm('car', a, b), osrm('foot', a, b)]);
   const alts = [...bk.map((r) => ({ ...r, prof: 'bike' })), ...car.map((r) => ({ ...r, prof: 'car' })), ...foot.map((r) => ({ ...r, prof: 'foot' }))].filter((r, i, arr) => r.exact || arr.every((x) => !x.exact));
-  const scored = alts.map((r) => ({ ...r, ...analyze(r.geo, band) }));
+  const scored = alts.map((r) => ({ ...r, ...analyze(r, band) }));
   const minKm = Math.min(...scored.map((r) => r.km));
   const ok = scored.filter((r) => r.km <= minKm * (mode === 'bike' ? 2.2 : 1.4)); // 너무 먼 우회로는 제외
   // 자전거길 우선: 자전거길을 따라가는 경로(OSM 자전거 프로필)를 먼저 고름
@@ -160,7 +144,7 @@ export async function planAll(a, b, band, bikeMode) {
 
   // ② 대중교통: 지하철(걸어서 역까지) 또는 시내버스 중 빠른 것
   const road = roadRes[0];
-  const ra = analyze(road.geo, band);
+  const ra = analyze(road, band);
   const wait = band < 2 ? 12 : 8;
   const busLeg = (geo, km, min, label) => ({ mode: 'bus', geo, km, min: Math.round(min) + wait, wait, congKm: ra.congKm * (km / (ra.km || 1)), exact: road.exact, label });
   const transitOpts = [];

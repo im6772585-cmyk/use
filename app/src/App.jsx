@@ -3,7 +3,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@maplibre/maplibre-gl-leaflet';
 import { mapStyle, C } from './mapStyle.js';
-import { CONG, COURSES, SUBWAY_LOAD } from './data.js';
+import { COURSES, SUBWAY_LOAD } from './data.js';
+import { ROAD_LV } from './congestion.js';
 import { ART } from './art.js';
 import { bikeSvg, myLocationHtml, trainSvg, personSvg, busSvg, walkSvg, qrSvg, searchSvg, medalSvg } from './rider.js';
 import { planAll, SUBWAY, TASHU, TRANSFER, nearest, dist, KCAL_PER_KM, CO2_G_PER_KM } from './plan.js';
@@ -99,22 +100,33 @@ const defaultBand = () => {
   const d = new Date(), h = d.getHours(), wd = d.getDay() >= 1 && d.getDay() <= 5;
   return wd && h >= 7 && h < 9 ? 0 : wd && h >= 17 && h < 19 ? 1 : 2;
 };
-const CONG_STYLE = { 2: { color: C.Y2, weight: 5 }, 3: { color: C.K, weight: 6 } }; // 혼잡 = 중간 주황, 정체 = 진한 주황
 
+
+// 혼잡 도로를 지도의 실제 도로 모양 위에 칠함 (도로 이름으로 연결)
+const NAME_EXPR = ['coalesce', ['get', 'name:ko'], ['get', 'name']];
+const congNames = (band, lv) => Object.keys(ROAD_LV).filter((n) => ROAD_LV[n][band] === lv);
+function applyCongestion(glMap, band, show) {
+  if (!glMap || !glMap.isStyleLoaded()) return false;
+  if (!glMap.getLayer('cong-case')) {
+    const before = glMap.getLayer('road-name') ? 'road-name' : undefined;
+    glMap.addLayer({ id: 'cong-case', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['==', 1, 0], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-color': C.W, 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 4, 16, 12] } }, before);
+    glMap.addLayer({ id: 'cong-line', type: 'line', source: 'omt', 'source-layer': 'transportation_name', filter: ['==', 1, 0], layout: { 'line-cap': 'round', 'line-join': 'round', visibility: 'none' }, paint: { 'line-width': ['interpolate', ['linear'], ['zoom'], 11, 2.5, 16, 8] } }, before);
+  }
+  const l3 = congNames(band, 3), l2 = congNames(band, 2);
+  const f = ['in', NAME_EXPR, ['literal', [...l3, ...l2]]];
+  ['cong-case', 'cong-line'].forEach((id) => { glMap.setFilter(id, f); glMap.setLayoutProperty(id, 'visibility', show ? 'visible' : 'none'); });
+  glMap.setPaintProperty('cong-line', 'line-color', ['case', ['in', NAME_EXPR, ['literal', l3]], C.K, C.Y2]);
+  return true;
+}
 function useCongestion(mapRef, band, dim = false, show = true) {
   useEffect(() => {
-    const map = mapRef.current;
-    if (!map || !show) return;
-    const g = L.layerGroup().addTo(map);
-    for (const [a, b, name, lv] of CONG) {
-      const l = lv[band];
-      if (l < 2) continue;
-      L.polyline([a, b], { color: C.W, weight: CONG_STYLE[l].weight + 4, opacity: dim ? 0.4 : 0.9, interactive: false }).addTo(g);
-      L.polyline([a, b], { ...CONG_STYLE[l], opacity: dim ? 0.35 : 0.9, lineCap: 'round' })
-        .bindTooltip(`${name} · ${l === 3 ? '정체' : '혼잡'}`, { sticky: true }).addTo(g);
-    }
-    return () => g.remove();
-  }, [mapRef, band, dim, show]);
+    const glMap = mapRef.current?._gl;
+    if (!glMap) return;
+    if (applyCongestion(glMap, band, show)) return;
+    const retry = () => { if (applyCongestion(glMap, band, show)) glMap.off('idle', retry); };
+    glMap.on('idle', retry);
+    return () => glMap.off('idle', retry);
+  }, [mapRef, mapRef.current, band, show]); // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // 자전거 경로가 혼잡·정체 도로를 얼마나 지나는지 (35m 이내를 같은 도로로 봄)
@@ -205,6 +217,7 @@ function useMap(ref, center) {
     const gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" }).addTo(map);
     let ok = false;
     const glMap = gl.getMaplibreMap();
+    map._gl = glMap;
     const okNow = () => { ok = true; box()?.classList.remove('map-failed'); };
     glMap.once('load', okNow); glMap.on('sourcedata', (e) => { if (e.isSourceLoaded) okNow(); });
     // 도시철도역을 지도 글자와 같은 층에 그려서 역 이름과 지명이 서로 겹치지 않게 함
@@ -1052,7 +1065,7 @@ function MyInfo({ back, rent, openRent, openReturn }) {
         <section className="card data-card">
           <h3>사용한 데이터</h3>
           {DATA_SOURCES.map((d) => <p key={d}>· {d}</p>)}
-          <p>대여소 1,408곳은 대여이력의 실제 좌표, 나머지 6곳은 동 경계 안 근사 위치예요. 도로·하천은 대략 좌표예요.</p>
+          <p>대여소 1,408곳은 대여이력의 실제 좌표, 나머지 6곳은 동 경계 안 근사 위치예요. 혼잡 구역은 도로명별 택시 속도·통행량과 평일 지하철 시간대 승하차로 주요 도로 125개를 계산해, 지도의 실제 도로 모양 위에 표시해요.</p>
         </section>
       </div>
     </div>
