@@ -106,6 +106,9 @@ const defaultBand = () => {
 const NAME_EXPR = ['coalesce', ['get', 'name:ko'], ['get', 'name']];
 const congNames = (band, lv) => Object.keys(ROAD_LV).filter((n) => ROAD_LV[n][band] === lv);
 function applyCongestion(glMap, band, show) {
+  try { return applyCongestion0(glMap, band, show); } catch { return false; }
+}
+function applyCongestion0(glMap, band, show) {
   if (!glMap || !glMap.getSource('omt')) return false;
   if (!glMap.getLayer('cong-case')) {
     const before = glMap.getLayer('road-name') ? 'road-name' : undefined;
@@ -217,7 +220,7 @@ function useMap(ref, center) {
     const gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" }).addTo(map);
     let ok = false;
     const glMap = gl.getMaplibreMap();
-    map._gl = glMap; window.__tashuGL = glMap;
+    map._gl = glMap;
     const okNow = () => { ok = true; box()?.classList.remove('map-failed'); };
     glMap.once('load', okNow); glMap.on('sourcedata', (e) => { if (e.isSourceLoaded) okNow(); });
     // 도시철도역을 지도 글자와 같은 층에 그려서 역 이름과 지명이 서로 겹치지 않게 함
