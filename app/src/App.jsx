@@ -594,14 +594,17 @@ function stepsOf(p) {
   const m = (km) => (km < 1 ? `${Math.round(km * 100) * 10}m` : `${km.toFixed(1)}km`);
   for (const l of p.legs) {
     if (l.mode === 'walk') {
-      const tgt = l.label.replace(/까지 걷기.*$/, '').replace(/ 개찰구까지$/, '').replace(/ 환승 대여소까지$/, '');
+      const tgt = l.label.replace(/까지( 걷기)?.*$/, '');
       s.push({ mode: 'walk', title: l.label.includes('목적지') ? '목적지까지 걷기' : `${tgt}까지 걷기`, sub: `${l.min}분${l.km > 0.05 ? ` · ${m(l.km)}` : ''}`, to: l.geo.coordinates.at(-1) });
     }
     if (l.mode === 'subway') {
       s.push({ mode: 'subway', title: `${l.from.name} 승차`, sub: `${l.to.idx < l.from.idx ? '판암' : '반석'} 방면 · 대기 약 ${l.wait}분`, to: [l.from.pos[1], l.from.pos[0]] });
       s.push({ mode: 'subway', title: `${l.to.name} 하차`, sub: `${l.stops}정거장 · ${l.min - l.wait}분`, to: [l.to.pos[1], l.to.pos[0]] });
     }
-    if (l.mode === 'bus') s.push({ mode: 'bus', title: `시내버스 ${l.min - l.wait}분`, sub: `정류장 대기 약 ${l.wait}분 · 도로 혼잡도로 추정한 시간`, to: l.geo.coordinates.at(-1) });
+    if (l.mode === 'bus') {
+      const off = (l.label.match(/→ (.+?) 하차/) || [])[1];
+      s.push({ mode: 'bus', title: `시내버스 ${l.min - l.wait}분`, sub: `${off ? `${off} 하차 · ` : ''}정류장 대기 약 ${l.wait}분 · 도로 혼잡도로 추정`, to: l.geo.coordinates.at(-1) });
+    }
     if (l.mode === 'bike') {
       if (l.rent) s.push({ mode: 'bike', title: '타슈 대여', sub: l.rent.name, to: [l.rent.pos[1], l.rent.pos[0]] });
       s.push({ mode: 'bike', title: `타슈 주행 ${l.min}분`, sub: `${m(l.km)}${l.congKm >= 0.05 ? ` · 혼잡 도로 ${m(l.congKm)} 지남` : ' · 혼잡 도로 없음'}`, to: l.geo.coordinates.at(-1) });
