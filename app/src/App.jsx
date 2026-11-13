@@ -527,7 +527,7 @@ function stepsOf(p) {
   const s = [];
   for (const l of p.legs) {
     if (l.mode === 'walk') s.push({ mode: 'walk', text: `${l.label} · ${l.min}분`, to: l.geo.coordinates.at(-1) });
-    if (l.mode === 'subway') { s.push({ mode: 'subway', text: `${l.from.name} 승차 (${l.from.name.replace(/역$/, '')} 방면 대기 약 ${l.wait}분)`, to: [l.from.pos[1], l.from.pos[0]] }); s.push({ mode: 'subway', text: `${l.to.name} 하차 · ${l.stops}정거장`, to: [l.to.pos[1], l.to.pos[0]] }); }
+    if (l.mode === 'subway') { s.push({ mode: 'subway', text: `${l.from.name} 승차 (${l.to.idx < l.from.idx ? '판암' : '반석'} 방면 · 대기 약 ${l.wait}분)`, to: [l.from.pos[1], l.from.pos[0]] }); s.push({ mode: 'subway', text: `${l.to.name} 하차 · ${l.stops}정거장`, to: [l.to.pos[1], l.to.pos[0]] }); }
     if (l.mode === 'bus') s.push({ mode: 'bus', text: l.label, to: l.geo.coordinates.at(-1) });
     if (l.mode === 'bike') {
       if (l.rent) s.push({ mode: 'bike', text: `${l.rent.name} 대여소에서 타슈 대여`, to: [l.rent.pos[1], l.rent.pos[0]] });
@@ -572,6 +572,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
 
   // 출발·도착·시간대·자전거 기준이 바뀌면 세 경로 다시 계산
   const originKey = from ? from.pos.join() : 'here';
+  const tripKeyRef = useRef('');
   useEffect(() => {
     if (!to || course) return;
     let alive = true;
@@ -579,7 +580,10 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
     planAll(origin.pos, to.pos, band, bikeMode).then((ps) => {
       if (!alive) return;
       setPlans(ps);
-      setTab((t) => (ps[t]?.none ? ps.findIndex((p) => p.fastest) : plans ? t : ps.findIndex((p) => p.fastest)));
+      const tripKey = `${originKey}|${to.pos.join()}`;
+      const fastest = ps.findIndex((x) => x.fastest);
+      setTab((t) => (tripKeyRef.current !== tripKey || ps[t]?.none ? fastest : t)); // 출발·도착이 바뀌면 가장 빠른 경로를 먼저
+      tripKeyRef.current = tripKey;
       setLoading(false);
     });
     return () => { alive = false; };

@@ -89,7 +89,9 @@ async function osrm(profile, a, b, alts = false) {
 async function bikeLeg(a, b, band, mode, label) {
   const alts = await osrm('bike', a, b, true);
   const scored = alts.map((r) => ({ ...r, ...analyze(r.geo, band) }));
-  const best = scored.sort((x, y) => x.cost[mode] - y.cost[mode])[0];
+  const minKm = Math.min(...scored.map((r) => r.km));
+  const ok = scored.filter((r) => r.km <= minKm * 1.4); // 너무 먼 우회로는 제외
+  const best = ok.sort((x, y) => x.cost[mode] - y.cost[mode])[0];
   return { mode: 'bike', geo: best.geo, km: best.km, min: Math.max(1, Math.round(best.bikeMin)), congKm: best.congKm, bikewayKm: best.bikewayKm, exact: best.exact, label };
 }
 const walkLeg = (a, b, label) => { const km = dist(a, b) * 1.25; return { mode: 'walk', geo: line(a, b), km, min: mins(km, WALK), label }; };
