@@ -211,7 +211,16 @@ function useMap(ref, center) {
     const addSubway = () => {
       if (glMap.getSource('subway')) return;
       glMap.addSource('subway', { type: 'geojson', data: { type: 'FeatureCollection', features: SUBWAY.map((st) => ({ type: 'Feature', properties: { name: st.name }, geometry: { type: 'Point', coordinates: [st.pos[1], st.pos[0]] } })) } });
-      glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 4, 15, 9], 'circle-color': C.K, 'circle-stroke-color': C.W, 'circle-stroke-width': 2.5 } });
+      glMap.addLayer({ id: 'subway-dot', type: 'circle', source: 'subway', paint: { 'circle-radius': ['interpolate', ['linear'], ['zoom'], 11, 6, 15, 13], 'circle-color': C.K, 'circle-stroke-color': C.W, 'circle-stroke-width': 2.5 } });
+      // 동그라미 안에 지하철 아이콘
+      const img = new Image(48, 48);
+      img.onload = () => {
+        try {
+          if (!glMap.hasImage('train')) glMap.addImage('train', img, { pixelRatio: 2 });
+          if (!glMap.getLayer('subway-icon')) glMap.addLayer({ id: 'subway-icon', type: 'symbol', source: 'subway', layout: { 'icon-image': 'train', 'icon-size': ['interpolate', ['linear'], ['zoom'], 11, 0.45, 15, 0.95], 'icon-allow-overlap': true, 'icon-ignore-placement': true } }, 'subway-name');
+        } catch { /* 지도 준비 전이면 다음에 */ }
+      };
+      img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(trainSvg('#DDF159').replace('<svg ', '<svg width="48" height="48" '));
       glMap.addLayer({ id: 'subway-name', type: 'symbol', source: 'subway', minzoom: 12,
         layout: { 'text-field': ['get', 'name'], 'text-font': ['Noto Sans Bold'], 'text-size': ['interpolate', ['linear'], ['zoom'], 12, 13, 16, 16], 'text-variable-anchor': ['top', 'bottom', 'right', 'left'], 'text-radial-offset': 1.1, 'text-padding': 6, 'symbol-sort-key': 0 },
         paint: { 'text-color': C.K, 'text-halo-color': C.W, 'text-halo-width': 3 } });
@@ -617,7 +626,11 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [loading, setLoading] = useState(false);
   const [planErr, setPlanErr] = useState(false);
   const [retry, setRetry] = useState(0);
-  const [guide, setGuide] = useState(null); // { steps, i }
+  const [guide, setGuide] = useState(null); // { steps, i, path, cum, total, plan }
+  const [guideMin, setGuideMin] = useState(false);   // 위 안내 카드 접기
+  const [panelOpen, setPanelOpen] = useState(false); // 아래 단계 목록 펼치기
+  const [followMe, setFollowMe] = useState(true);    // 지도가 내 위치 따라가기
+  const [simKm, setSimKm] = useState(null);          // 미리 따라가 보기 (위치 신호 없을 때)
   const [arrived, setArrived] = useState(false);
   const [course, setCourse] = useState(null);
   const [riding, setRiding] = useState(false);
@@ -625,7 +638,14 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [won, setWon] = useState(null);
   const origin = from || { name: loc.live ? '현재 위치' : '현재 위치 (대전시청 기준)', pos: loc.pos, here: true };
 
-  useMeMarker(mapRef, loc.pos, !!guide || riding);
+  const pathPoint = (g, km) => {
+    if (!g) return null;
+    let i = g.cum.findIndex((c) => c >= km); if (i <= 0) return g.path[Math.max(0, i)];
+    const t = (km - g.cum[i - 1]) / (g.cum[i] - g.cum[i - 1] || 1);
+    return [g.path[i - 1][0] + (g.path[i][0] - g.path[i - 1][0]) * t, g.path[i - 1][1] + (g.path[i][1] - g.path[i - 1][1]) * t];
+  };
+  const cur = guide && simKm != null ? pathPoint(guide, simKm) : loc.pos;
+  useMeMarker(mapRef, cur, (!!guide && followMe) || riding);
   useCongestion(mapRef, band, true, false);
   useStationLayers(mapRef, bus.list, (act, place) => { if (act === 'from') setFrom(place); else setTo(place); setEditing(null); setSel(null); });
   const [picker, setPicker] = useState(false);
@@ -692,10 +712,47 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
 
   // 안내 중: 다음 지점 60m 안에 들어오면 다음 단계로
   useEffect(() => {
-    if (!guide || !loc.live) return;
+    if (!guide || (!loc.live && simKm == null)) return;
     const st = guide.steps[guide.i];
-    if (st?.to && dist(loc.pos, [st.to[1], st.to[0]]) < 0.06) next();
-  }, [loc.pos]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (st?.to && dist(cur, [st.to[1], st.to[0]]) < 0.06) next();
+  }, [cur?.[0], cur?.[1]]); // eslint-disable-line react-hooks/exhaustive-deps
+  // 미리 따라가 보기: 실제 속도의 약 20배로 경로를 따라 이동
+  useEffect(() => {
+    if (!guide || simKm == null) return;
+    if (simKm >= guide.total) { setSimKm(null); setGuide(null); setArrived(true); return; }
+    const t = setTimeout(() => setSimKm((k) => Math.min(guide.total, k + 0.03)), 120);
+    return () => clearTimeout(t);
+  }, [simKm, guide]);
+  // 지도를 손으로 움직이면 따라가기 잠시 멈춤
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !guide) return;
+    const off = () => setFollowMe(false);
+    map.on('dragstart', off); return () => map.off('dragstart', off);
+  }, [mapRef, guide]);
+  // 지나온 길은 흐리게
+  const progress = useMemo(() => {
+    if (!guide) return null;
+    let best = 0, bd = 1e9;
+    guide.path.forEach((pt, i) => { const d = dist(cur, pt); if (d < bd) { bd = d; best = i; } });
+    const doneKm = simKm != null ? simKm : guide.cum[best];
+    const leftKm = Math.max(0, guide.total - doneKm);
+    const leftMin = Math.max(1, Math.round(guide.plan.min * (leftKm / (guide.total || 1))));
+    return { idx: best, leftKm, leftMin, arrive: new Date(Date.now() + leftMin * 60000), off: bd > 0.12 && loc.live && simKm == null };
+  }, [guide, cur?.[0], cur?.[1], simKm]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !guide || !progress) return;
+    const done = L.polyline(guide.path.slice(0, progress.idx + 1), { color: '#B9C2C9', weight: 8, opacity: 0.95, interactive: false }).addTo(map);
+    return () => done.remove();
+  }, [mapRef, guide, progress?.idx]); // eslint-disable-line react-hooks/exhaustive-deps
+  const startGuide = (plan, steps) => {
+    const path = [];
+    plan.legs.forEach((l) => l.geo.coordinates.forEach(([lon, lat]) => { const pt = [lat, lon]; if (!path.length || dist(path.at(-1), pt) > 0.002) path.push(pt); }));
+    const cum = [0]; for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + dist(path[i - 1], path[i]));
+    setGuide({ steps, i: 0, path, cum, total: cum.at(-1) || 0.001, plan });
+    setArrived(false); setFollowMe(true); setGuideMin(false); setPanelOpen(false); setSimKm(null);
+    mapRef.current?.setView(loc.live ? loc.pos : path[0], 17);
+  };
+  const endGuide = () => { setGuide(null); setSimKm(null); };
   const next = () => setGuide((g) => {
     if (!g) return g;
     if (g.i + 1 >= g.steps.length) { setArrived(true); return null; }
@@ -736,12 +793,14 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       <div ref={el} className="map" /><MapFail />
 
       {guide ? (
-        <div className={`guide-card g-${curStep.mode}`}>
-          <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#15273E')} size={32} />
-          <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.title}</b><span className="g-sub">{curStep.sub}</span>
-            {guide.steps[guide.i + 1] && guide.steps[guide.i + 1].mode !== curStep.mode && <em>다음: {MODE_NM[guide.steps[guide.i + 1].mode]}(으)로 갈아타기</em>}
+        <div className={`guide-card g-${curStep.mode} ${guideMin ? 'min' : ''}`}>
+          <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#15273E')} size={guideMin ? 22 : 32} />
+          <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.title}</b>
+            {!guideMin && <span className="g-sub">{curStep.sub}</span>}
+            {!guideMin && guide.steps[guide.i + 1] && guide.steps[guide.i + 1].mode !== curStep.mode && <em>다음: {MODE_NM[guide.steps[guide.i + 1].mode]}(으)로 갈아타기</em>}
           </div>
-          <button onClick={next}>다음</button>
+          {!guideMin && <button onClick={next}>다음</button>}
+          <button className="g-fold" onClick={() => setGuideMin((v) => !v)} aria-label={guideMin ? '안내 펼치기' : '안내 접기'}>{guideMin ? '▾' : '▴'}</button>
         </div>
       ) : course ? (
         <header className="route-head"><button className="back" onClick={back}>←</button><div><b>오늘은 어떤 경로로 자전거를 타볼까?</b><small>동물 모양 코스 · 완주하면 배지</small></div></header>
@@ -770,7 +829,34 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
         </div>
       )}
 
-      {!editing && (
+      {guide && progress && (
+        <div className={`guide-panel ${panelOpen ? 'open' : ''}`}>
+          <button className="gp-handle" onClick={() => setPanelOpen((v) => !v)} aria-label={panelOpen ? '단계 목록 내리기' : '단계 목록 올리기'}><i /><span>{panelOpen ? '내리기' : '전체 단계 보기'}</span></button>
+          <div className="gp-sum">
+            <div><b>{progress.leftKm < 1 ? `${Math.round(progress.leftKm * 1000)}m` : `${progress.leftKm.toFixed(1)}km`}</b><small>남은 거리</small></div>
+            <div><b>{progress.leftMin}분</b><small>남은 시간</small></div>
+            <div><b>{hhmm(progress.arrive)}</b><small>도착 예정</small></div>
+          </div>
+          {progress.off && <p className="gp-warn">경로에서 벗어났어요. 지도의 굵은 선을 따라 돌아가 주세요.</p>}
+          {panelOpen && (
+            <ol className="timeline gp-steps">{guide.steps.map((st, i) => (
+              <li key={i} className={`tl-${st.mode} ${i < guide.i ? 'done' : i === guide.i ? 'now' : ''}`} onClick={() => setGuide((g) => ({ ...g, i }))}>
+                <span className="tl-num">{i < guide.i ? '✓' : i + 1}</span>
+                <Icon svg={MODE_ICON[st.mode]('#15273E')} size={22} className="tl-ico" />
+                <span className="tl-txt"><b>{st.title}</b><small>{st.sub}</small></span>
+              </li>
+            ))}</ol>
+          )}
+          <div className="gp-btns">
+            {!followMe && <button onClick={() => { setFollowMe(true); mapRef.current?.setView(cur, 17); }}>내 위치 따라가기</button>}
+            {!loc.live && simKm == null && <button onClick={() => { setSimKm(0); setFollowMe(true); }}>미리 따라가 보기</button>}
+            {simKm != null && <button onClick={() => setSimKm(null)}>미리보기 멈춤</button>}
+            <button className="ghost" onClick={endGuide}>안내 종료</button>
+          </div>
+        </div>
+      )}
+
+      {!editing && !guide && (
         <div className="sheet">
           {won && <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 화면에 모였어요.</small></div></div>}
           {arrived && (
@@ -849,7 +935,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                       <span className="tl-txt"><b>{st.title}</b><small>{st.sub}</small></span>
                     </li>
                   ))}</ol>
-                  <button className="cc-btn" onClick={() => { setGuide({ steps, i: 0 }); setArrived(false); mapRef.current?.setView(origin.pos, 17); }}>안내 시작</button>
+                  <button className="cc-btn" onClick={() => startGuide(p, steps)}>안내 시작</button>
                   <small className="note">{p.legs.some((l) => l.exact === false) ? '일부 구간은 경로 서버에 연결하지 못해 직선으로 표시했어요. ' : ''}{p.legs.some((l) => l.mode === 'bus') ? '버스 시간은 도로 혼잡도로 추정한 값이에요. ' : ''}{p.legs.some((l) => l.mode === 'subway') ? '지하철은 한 정거장 2분 + 대기 4분으로 계산했어요.' : ''}</small>
                 </div>
               )}

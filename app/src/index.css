@@ -567,3 +567,26 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .route-loading i { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #EEEEDD; border-top-color: #305A52; animation: spin .8s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 .route-info { gap: 8px; }
+
+/* ===== v9: 길 따라가기 안내 ===== */
+.guide-card.min { padding: 8px 12px; }
+.guide-card.min b { font-size: 15px; }
+.guide-card.min small { display: none; }
+.g-fold { min-width: 44px !important; width: 44px; background: rgba(255,255,255,.25) !important; color: inherit !important; font-size: 18px; border: 1.5px solid currentColor; }
+.guide-panel { position: absolute; left: 0; right: 0; bottom: 0; z-index: 650; background: #FFFFFF; border-radius: 22px 22px 0 0; box-shadow: 0 -4px 16px rgba(21,39,62,.18); padding: 0 14px 18px; display: flex; flex-direction: column; gap: 10px; max-height: 70%; }
+.gp-handle { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 0 2px; background: none; min-height: 44px; }
+.gp-handle i { width: 44px; height: 5px; border-radius: 3px; background: #D4D596; }
+.gp-handle span { font-size: 12px; font-weight: 800; color: #305A52; }
+.gp-sum { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; text-align: center; }
+.gp-sum div { display: flex; flex-direction: column; }
+.gp-sum b { font-size: 22px; color: #15273E; }
+.gp-sum small { font-size: 12px; color: #305A52 !important; font-weight: 700; }
+.gp-warn { margin: 0; background: #DDF159; color: #15273E; font-weight: 800; font-size: 13px; padding: 8px 10px; border-radius: 10px; }
+.gp-steps { overflow-y: auto; min-height: 0; flex: 1; }
+.gp-steps li { cursor: pointer; }
+.gp-steps li.done { opacity: .45; }
+.gp-steps li.now { background: #EEF6C4; border-radius: 12px; padding-left: 6px; }
+.gp-btns { display: flex; gap: 6px; }
+.gp-btns button { flex: 1; min-height: 46px; border-radius: 12px; background: #305A52; color: #FFFFFF; font-weight: 800; font-size: 14px; text-align: center; }
+.gp-btns button.ghost { background: #FFFFFF; color: #15273E; border: 2px solid #305A52; }
+.guiding .recenter { display: none; }
