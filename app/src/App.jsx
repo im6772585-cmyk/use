@@ -3,6 +3,8 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@maplibre/maplibre-gl-leaflet';
 import { mapStyle, C } from './mapStyle.js';
+import { CONG, COURSES, STATIONS } from './data.js';
+import { ART } from './art.js';
 import { bikeSvg, myLocationHtml, trainSvg, personSvg } from './rider.js';
 
 const DAEJEON_CENTER = [36.3504, 127.3845]; // 대전시청
@@ -103,7 +105,7 @@ function dedupe(list) {
 }
 async function loadNearby(center) {
   const [lat, lon] = center;
-  const q = `[out:json][timeout:20];(node["amenity"="bicycle_rental"](around:1500,${lat},${lon});node["highway"="bus_stop"](around:900,${lat},${lon}););out body;`;
+  const q = `[out:json][timeout:20];node["highway"="bus_stop"](around:900,${lat},${lon});out body;`;
   let j = null;
   for (const url of OVERPASS) {
     try {
@@ -113,23 +115,23 @@ async function loadNearby(center) {
     } catch { /* 다음 서버 시도 */ }
   }
   if (!j) throw new Error('overpass unavailable');
-  const tashu = [], bus = [];
-  for (const e of j.elements) {
-    const item = { name: e.tags.name || (e.tags.amenity ? '타슈 대여소' : '버스정류장'), pos: [e.lat, e.lon] };
-    (e.tags.amenity === 'bicycle_rental' ? tashu : bus).push(item);
-  }
-  return { tashu, bus };
+  return { bus: j.elements.map((e) => ({ name: e.tags.name || '버스정류장', pos: [e.lat, e.lon] })) };
 }
 const nearest = (list, p) => list.reduce((best, s) => { const d = dist(p, s.pos); return !best || d < best.d ? { ...s, d } : best; }, null);
 
+// 타슈 대여소 1,414곳 (대여이력의 실제 좌표) 중 반경 1.5km 안
+const TASHU = STATIONS.map(([name, lat, lon, rides]) => ({ name, pos: [lat, lon], rides }));
+const tashuNear = (c) => TASHU.filter((s) => Math.abs(s.pos[0] - c[0]) < 0.015 && Math.abs(s.pos[1] - c[1]) < 0.018 && dist(c, s.pos) < 1.5);
+
 function useTransit(center) {
-  const [data, setData] = useState({ subway: SUBWAY, tashu: [], bus: [], loaded: false, failed: false });
   const key = `${center[0].toFixed(3)},${center[1].toFixed(3)}`;
+  const [data, setData] = useState({ subway: SUBWAY, tashu: tashuNear(center), bus: [], loaded: false, failed: false });
   useEffect(() => {
     let alive = true;
-    const [lat, lon] = key.split(',').map(Number);
-    loadNearby([lat, lon])
-      .then((n) => alive && setData({ subway: SUBWAY, ...n, loaded: true, failed: false }))
+    const c = key.split(',').map(Number);
+    setData((d) => ({ ...d, tashu: tashuNear(c) }));
+    loadNearby(c)
+      .then((n) => alive && setData((d) => ({ ...d, ...n, loaded: true, failed: false })))
       .catch(() => alive && setData((d) => ({ ...d, loaded: true, failed: true })));
     return () => { alive = false; };
   }, [key]);
@@ -162,6 +164,130 @@ function useTransitLayer(mapRef, transit, center) {
     zoomClass(); map.on('zoomend', zoomClass);
     return () => { map.off('zoomend', zoomClass); g.remove(); };
   }, [mapRef, transit, center]);
+}
+
+
+// ---------- 시간대 (출근 · 퇴근 · 평시) + 혼잡 구간 ----------
+const BANDS = [
+  { key: 'am', nm: '출근', sub: '07–09시' },
+  { key: 'pm', nm: '퇴근', sub: '17–19시' },
+  { key: 'off', nm: '평시', sub: '그 외' },
+];
+const defaultBand = () => {
+  const d = new Date(), h = d.getHours(), wd = d.getDay() >= 1 && d.getDay() <= 5;
+  return wd && h >= 7 && h < 9 ? 0 : wd && h >= 17 && h < 19 ? 1 : 2;
+};
+const CONG_STYLE = { 2: { color: C.K3, weight: 5 }, 3: { color: C.K, weight: 6 } }; // 혼잡 = 회색, 정체 = 검정
+
+function useCongestion(mapRef, band, dim = false) {
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const g = L.layerGroup().addTo(map);
+    for (const [a, b, name, lv] of CONG) {
+      const l = lv[band];
+      if (l < 2) continue;
+      L.polyline([a, b], { color: C.W, weight: CONG_STYLE[l].weight + 4, opacity: dim ? 0.4 : 0.9, interactive: false }).addTo(g);
+      L.polyline([a, b], { ...CONG_STYLE[l], opacity: dim ? 0.35 : 0.9, lineCap: 'round' })
+        .bindTooltip(`${name} · ${l === 3 ? '정체' : '혼잡'}`, { sticky: true }).addTo(g);
+    }
+    return () => g.remove();
+  }, [mapRef, band, dim]);
+}
+
+// 자전거 경로가 혼잡·정체 도로를 얼마나 지나는지 (35m 이내를 같은 도로로 봄)
+function congestedKm(geo, band) {
+  const segs = CONG.filter((c) => c[3][band] >= 2);
+  if (!segs.length) return 0;
+  const k = 111000, kx = 111000 * Math.cos(36.35 * Math.PI / 180);
+  const xy = ([lat, lon]) => [lon * kx, lat * k];
+  const segXY = segs.map(([a, b]) => [xy(a), xy(b)]);
+  const near = (p) => segXY.some(([a, b]) => {
+    const dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy || 1;
+    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len));
+    return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy) < 35;
+  });
+  const pts = geo.coordinates.map(([lon, lat]) => [lat, lon]);
+  let m = 0;
+  for (let i = 1; i < pts.length; i++) {
+    const mid = [(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2];
+    if (near(xy(mid))) m += dist(pts[i - 1], pts[i]);
+  }
+  return m;
+}
+
+function BandBar({ band, setBand }) {
+  return (
+    <div className="band-bar">
+      <div className="band-seg">
+        {BANDS.map((b, i) => (
+          <button key={b.key} aria-pressed={band === i} onClick={() => setBand(i)}>{b.nm}<small>{b.sub}</small></button>
+        ))}
+      </div>
+      <div className="band-legend"><span><i className="lg-2" />혼잡</span><span><i className="lg-3" />정체</span></div>
+    </div>
+  );
+}
+
+// ---------- 배지 ----------
+const loadBadges = () => { try { return JSON.parse(localStorage.getItem('tashu-badges') || '{}'); } catch { return {}; } };
+const saveBadge = (id) => { const b = loadBadges(); b[id] = b[id] || Date.now(); try { localStorage.setItem('tashu-badges', JSON.stringify(b)); } catch { /* 저장 불가 */ } return b; };
+const ANIMAL = { dog: '강아지', cat: '고양이', heart: '하트', fish: '물고기', rabbit: '토끼', star: '별' };
+
+function Medal({ id, got, size = 96 }) {
+  const fill = got ? C.Y : C.K5, ring = got ? C.K : C.K4, ink = got ? C.K : C.K4, rib = got ? C.K : C.K4;
+  return (
+    <svg width={size} height={size * 1.12} viewBox="0 0 100 112" aria-hidden="true">
+      <path d="M31 78 L22 110 L36 102 L44 112 L50 84Z" fill={rib} />
+      <path d="M69 78 L78 110 L64 102 L56 112 L50 84Z" fill={got ? C.K2 : C.K4} />
+      <circle cx="50" cy="48" r="44" fill={fill} stroke={ring} strokeWidth="3" />
+      <circle cx="50" cy="48" r="38" fill="none" stroke={C.W} strokeWidth="1.6" strokeDasharray="2 3" />
+      <g transform="translate(50 48) scale(.56) translate(-50 -50)">
+        <path d={ART[id]} fill="none" stroke={C.W} strokeWidth="11" strokeLinecap="round" strokeLinejoin="round" />
+        <path d={ART[id]} fill="none" stroke={ink} strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+      </g>
+    </svg>
+  );
+}
+
+function CourseThumb({ c, size = 64 }) {
+  const xs = c.pts.map((p) => p[1]), ys = c.pts.map((p) => -p[0]);
+  const x0 = Math.min(...xs), y0 = Math.min(...ys), w = Math.max(...xs) - x0, h = Math.max(...ys) - y0, sc = 72 / Math.max(w, h);
+  const ox = 14 + (72 - w * sc) / 2, oy = 14 + (72 - h * sc) / 2;
+  const d = c.pts.map((p, i) => `${i ? 'L' : 'M'}${((p[1] - x0) * sc + ox).toFixed(1)} ${((-p[0] - y0) * sc + oy).toFixed(1)}`).join(' ');
+  return (
+    <svg width={size} height={size} viewBox="0 0 100 100" aria-hidden="true">
+      <rect width="100" height="100" rx="18" fill={C.Y3} />
+      <path d={d} fill="none" stroke={C.W} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" />
+      <path d={d} fill="none" stroke={C.K} strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function BadgeScreen({ back, openCourse }) {
+  const got = loadBadges();
+  const n = COURSES.filter((c) => got[c.id]).length;
+  return (
+    <div className="screen info">
+      <header className="info-head"><button className="back" onClick={back}>←</button><b style={{ flex: 1 }}>코스 배지</b><span className="bdg-count">배지 {n}/6</span></header>
+      <div className="info-body">
+        <section className="card">
+          <h3>코스 배지 {n}/6</h3>
+          <div className="bdg-progress"><b>{n}/6</b><div className="pass-bar"><div style={{ width: `${(n / 6) * 100}%` }} /></div></div>
+          <p className="bdg-desc">길안내의 "오늘은 어떤 경로로 자전거를 타볼까?"에서 동물 모양 코스를 끝까지 달리면 그 모양의 배지를 받아요. 배지를 누르면 그 코스로 바로 가요.</p>
+        </section>
+        <div className="bdg-grid">
+          {COURSES.map((c) => (
+            <button key={c.id} className={got[c.id] ? 'bdg on' : 'bdg'} onClick={() => openCourse(c.id)}>
+              <Medal id={c.id} got={!!got[c.id]} />
+              <b>{c.badge}</b>
+              <small>{c.nm} · {c.km}km</small>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // ---------- 지도 ----------
@@ -216,13 +342,14 @@ function Splash({ onDone }) {
 }
 
 // ---------- 메인 지도 ----------
-function Home({ loc, go }) {
+function Home({ loc, go, band, setBand }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
   const [follow, setFollow] = useState(true);
   const transit = useTransit(loc.pos);
   useMeMarker(mapRef, loc.pos, follow);
   useTransitLayer(mapRef, transit, loc.pos);
+  useCongestion(mapRef, band);
   useEffect(() => {
     const m = mapRef.current; if (!m) return;
     const off = () => setFollow(false);
@@ -238,7 +365,9 @@ function Home({ loc, go }) {
     <div className="screen">
       <div ref={el} className="map" /><MapFail />
       <WeatherChip pos={loc.pos} />
+      <BandBar band={band} setBand={setBand} />
       {loc.error && <div className="toast">{loc.error}</div>}
+      <button className="badge-fab" onClick={() => go('badges')}><Medal id="star" got size={30} /><small>배지</small></button>
       <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
       {/* 연계 카드: 지하철(가장 크게) > 타슈 > 버스 */}
@@ -253,11 +382,11 @@ function Home({ loc, go }) {
             <div className="lc-row">
               <button className="lc-sub" onClick={() => focus(tashu)}>
                 <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
-                <div><small>타슈 대여소</small><b>{tashu ? `도보 ${mins(tashu.d, SPEED.walk)}분` : !transit.loaded ? '찾는 중…' : transit.failed ? '잠시 후 다시' : '근처 없음'}</b></div>
+                <div><small>{tashu ? `타슈 · ${tashu.name}` : '타슈 대여소'}</small><b>{tashu ? `도보 ${mins(tashu.d * 1.2, SPEED.walk)}분` : '1.5km 안에 없음'}</b></div>
               </button>
               <button className="lc-mini" onClick={() => focus(bus)}>
                 <span className="lc-ico bus" />
-                <div><small>버스</small><b>{bus ? `${Math.round(bus.d * 1000)}m` : !transit.loaded ? '…' : '–'}</b></div>
+                <div><small>버스</small><b>{bus ? `${Math.round(bus.d * 1000)}m` : !transit.loaded ? '…' : transit.failed ? '정보 없음' : '–'}</b></div>
               </button>
             </div>
           </>
@@ -285,7 +414,7 @@ async function bikeRoute(a, b) {
   }
 }
 
-function RouteScreen({ loc, back }) {
+function RouteScreen({ loc, back, band, setBand, initialCourse }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
   const layerRef = useRef(null);
@@ -294,8 +423,13 @@ function RouteScreen({ loc, back }) {
   const [plans, setPlans] = useState(null);
   const [sel, setSel] = useState(0);
   const [loading, setLoading] = useState(false);
-  useMeMarker(mapRef, loc.pos, false);
+  const [course, setCourse] = useState(null);
+  const [riding, setRiding] = useState(false);
+  const [visited, setVisited] = useState(() => new Set());
+  const [won, setWon] = useState(null);
+  useMeMarker(mapRef, loc.pos, riding);
   useTransitLayer(mapRef, transit, loc.pos);
+  useCongestion(mapRef, band, !!plans || !!course);
 
   const draw = useCallback((plan) => {
     const map = mapRef.current;
@@ -313,7 +447,7 @@ function RouteScreen({ loc, back }) {
   }, [mapRef]);
 
   const find = async (d) => {
-    setDest(d); setLoading(true); setPlans(null);
+    setDest(d); setLoading(true); setPlans(null); setCourse(null); setRiding(false);
     const me = loc.pos;
     const bikeOnly = await bikeRoute(me, d.pos);
     const options = [{
@@ -334,12 +468,45 @@ function RouteScreen({ loc, back }) {
         ],
       });
     }
-    options.forEach((o) => { o.total = o.legs.reduce((a, l) => a + l.min, 0); });
+    options.forEach((o) => {
+      o.total = o.legs.reduce((a, l) => a + l.min, 0);
+      o.congKm = o.legs.filter((l) => l.mode === 'bike').reduce((a, l) => a + congestedKm(l.geo, band), 0);
+    });
     options.sort((a, b) => a.total - b.total);
     setPlans(options); setSel(0); draw(options[0]); setLoading(false);
   };
 
   const pick = (i) => { setSel(i); draw(plans[i]); };
+
+  // ----- 동물 모양 코스 -----
+  const showCourse = useCallback((c) => {
+    const map = mapRef.current; if (!map) return;
+    setCourse(c); setPlans(null); setDest(null); setRiding(false); setVisited(new Set()); setWon(null);
+    if (layerRef.current) layerRef.current.remove();
+    const g = L.layerGroup().addTo(map); layerRef.current = g;
+    L.polyline(c.pts, { color: C.K, weight: 10, opacity: 1, lineJoin: 'round' }).addTo(g);
+    const line = L.polyline(c.pts, { color: C.Y, weight: 6, lineJoin: 'round' }).addTo(g);
+    c.pts.forEach((p, i) => L.circleMarker(p, { radius: 3, color: C.K, weight: 1.5, fillColor: C.W, fillOpacity: 1 }).bindTooltip(c.names[i] || '', { direction: 'top' }).addTo(g));
+    L.marker(c.pts[0], { icon: L.divIcon({ className: '', html: '<div class="start-pin">출발</div>', iconSize: [40, 22], iconAnchor: [20, 30] }) }).addTo(g);
+    map.fitBounds(line.getBounds(), { padding: [50, 50], paddingBottomRight: [30, 320] });
+  }, [mapRef]);
+  useEffect(() => {
+    if (initialCourse && mapRef.current) showCourse(COURSES.find((c) => c.id === initialCourse));
+  }, [initialCourse, mapRef, showCourse, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 코스 달리는 중: 실시간 위치가 코스의 대여소 지점 60m 안에 들어오면 지나간 것으로 표시
+  useEffect(() => {
+    if (!riding || !course || !loc.live) return;
+    setVisited((v) => {
+      const n = new Set(v);
+      course.pts.forEach((p, i) => { if (dist(loc.pos, p) < 0.06) n.add(i); });
+      return n;
+    });
+  }, [riding, course, loc.pos, loc.live]);
+  useEffect(() => {
+    if (!riding || !course || won) return;
+    if (visited.size >= Math.ceil(course.pts.length * 0.9)) { saveBadge(course.id); setWon(course); setRiding(false); }
+  }, [visited, riding, course, won]);
   const MODE = { bike: '타슈', subway: '지하철', walk: '도보' };
 
   return (
@@ -349,8 +516,31 @@ function RouteScreen({ loc, back }) {
         <button className="back" onClick={back}>←</button>
         <div><b>최적 경로 길찾기</b><small>출발: 현재 위치 {loc.live ? '(실시간)' : '(대전시청 기준)'}</small></div>
       </header>
+      <div className="route-band"><BandBar band={band} setBand={setBand} /></div>
       <div className="sheet">
-        {!plans && <div className="route-info"><b>{loading ? '타슈·지하철 연계 경로 찾는 중…' : '어디로 갈까요?'}</b></div>}
+        {won && (
+          <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 보관함에서 볼 수 있어요.</small></div></div>
+        )}
+        {course && !won && (() => {
+          const got = loadBadges()[course.id];
+          const pct = Math.round((visited.size / course.pts.length) * 100);
+          return (
+            <div className="course-card">
+              <div className="cc-head"><CourseThumb c={course} size={58} /><div><b>{course.nm}</b><small>{course.area} · 대여소 {course.stops}곳 · 실제 이용 구간 {course.ridden}%</small></div></div>
+              <div className="cc-sum"><span className="big">{Math.round(course.km / 12 * 60)}분</span><span>{course.km}km · 혼잡 도로 0m</span><span className="badge">{got ? '배지 받음' : `완주하면 ${course.badge}`}</span></div>
+              {riding ? (
+                <div className="cc-ride">
+                  <div className="pass-bar"><div style={{ width: `${pct}%` }} /></div>
+                  <small>{loc.live ? `코스 지점 ${visited.size}/${course.pts.length} 지남 · 90% 지나면 완주` : '실시간 위치를 켜야 완주를 확인할 수 있어요'}</small>
+                  <button className="cc-btn ghost" onClick={() => setRiding(false)}>그만 달리기</button>
+                </div>
+              ) : (
+                <button className="cc-btn" onClick={() => { setRiding(true); mapRef.current?.setView(course.pts[0], 16); }}>코스 시작하기</button>
+              )}
+            </div>
+          );
+        })()}
+        {!plans && !course && <div className="route-info"><b>{loading ? '타슈·지하철 연계 경로 찾는 중…' : '어디로 갈까요?'}</b></div>}
         {plans && plans.map((p, i) => (
           <button key={p.title} className={`plan ${i === 0 ? 'best' : 'alt'} ${sel === i ? 'on' : ''}`} onClick={() => pick(i)}>
             <div className="plan-top">
@@ -364,11 +554,21 @@ function RouteScreen({ loc, back }) {
               ))}
             </div>
             {i === 0 && <small className="plan-desc">{p.legs.map((l) => l.label).join(' · ')}{p.legs.some((l) => l.mode === 'subway') ? ' (지하철 시간은 예상치)' : ''}</small>}
+            <small className="plan-cong">{BANDS[band].nm} 기준 · {p.congKm >= 0.05 ? `혼잡 도로 ${p.congKm.toFixed(1)}km 지나요` : '혼잡 도로를 지나지 않아요'}</small>
           </button>
         ))}
         <div className="chips">
           {DESTINATIONS.map((d) => (
             <button key={d.name} className={dest?.name === d.name ? 'chip on' : 'chip'} onClick={() => find(d)}>{d.name}</button>
+          ))}
+        </div>
+        <div className="crs-title">오늘은 어떤 경로로 자전거를 타볼까?</div>
+        <div className="crs-row">
+          {COURSES.map((c) => (
+            <button key={c.id} className={course?.id === c.id ? 'crs on' : 'crs'} onClick={() => showCourse(c)}>
+              <CourseThumb c={c} size={64} />
+              <b>{c.nm}</b><small>{c.km}km{loadBadges()[c.id] ? ' · 배지 ✓' : ''}</small>
+            </button>
           ))}
         </div>
       </div>
@@ -487,11 +687,16 @@ export default function App() {
   const [screen, setScreen] = useState('splash');
   const loc = useLocation();
   const home = useCallback(() => setScreen('home'), []);
+  const [band, setBand] = useState(defaultBand);
+  const [courseId, setCourseId] = useState(null);
+  const go = useCallback((sc) => { setCourseId(null); setScreen(sc); }, []);
+  const openCourse = useCallback((id) => { setCourseId(id); setScreen('route'); }, []);
   return (
     <div className="phone">
       {screen === 'splash' && <Splash onDone={home} />}
-      {screen === 'home' && <Home loc={loc} go={setScreen} />}
-      {screen === 'route' && <RouteScreen loc={loc} back={home} />}
+      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} />}
+      {screen === 'route' && <RouteScreen loc={loc} back={home} band={band} setBand={setBand} initialCourse={courseId} />}
+      {screen === 'badges' && <BadgeScreen back={home} openCourse={openCourse} />}
       {screen === 'left' && <Placeholder title="대여소" icon={bikeSvg('#111111')} desc="왼쪽 아래 버튼 화면 (예: 주변 타슈 대여소)" back={home} />}
       {screen === 'right' && <MyInfo back={home} />}
     </div>

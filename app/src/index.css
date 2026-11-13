@@ -185,3 +185,61 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .sw.on { background: #FFD200; box-shadow: inset 0 0 0 2px #111111; }
 .sw.on i { left: 25px; background: #111111; }
 .data-card p { margin: 0 0 6px; font-size: 12px; color: #444444; line-height: 1.55; }
+
+/* ===== 시간대 선택 + 혼잡 범례 ===== */
+.band-bar { position: absolute; top: 60px; left: 12px; right: 12px; z-index: 500; display: flex; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 16px; padding: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.band-seg { flex: 1; display: flex; gap: 4px; }
+.band-seg button { flex: 1; border-radius: 11px; padding: 7px 2px; background: none; display: flex; flex-direction: column; align-items: center; font-size: 14px; font-weight: 800; color: #444444; text-align: center; }
+.band-seg button small { font-size: 10px; font-weight: 600; color: #8C8C8C; }
+.band-seg button[aria-pressed="true"] { background: #111111; color: #FFFFFF; }
+.band-seg button[aria-pressed="true"] small { color: #FFD200; }
+.band-legend { display: flex; flex-direction: column; gap: 4px; padding-right: 6px; font-size: 11px; color: #444444; }
+.band-legend span { display: flex; align-items: center; gap: 5px; white-space: nowrap; }
+.band-legend i { width: 16px; height: 5px; border-radius: 3px; display: inline-block; }
+.lg-2 { background: #8C8C8C; } .lg-3 { background: #111111; }
+.toast { top: 124px; }
+.route-band .band-bar { top: 84px; }
+
+/* ===== 배지 버튼 (지도 왼쪽) ===== */
+.badge-fab { position: absolute; left: 12px; bottom: 262px; z-index: 500; width: 62px; height: 66px; border-radius: 18px; background: #FFFFFF; box-shadow: 0 2px 10px rgba(0,0,0,.15); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 0; text-align: center; }
+.badge-fab small { font-size: 11px; font-weight: 800; }
+
+/* ===== 배지 화면 ===== */
+.bdg-count { background: #FFD200; font-size: 12px; font-weight: 800; padding: 4px 10px; border-radius: 12px; }
+.bdg-progress { display: flex; align-items: center; gap: 12px; }
+.bdg-progress b { font-size: 16px; }
+.bdg-progress .pass-bar { flex: 1; margin: 0; background: #EBEBEB; height: 10px; }
+.bdg-desc { margin: 12px 0 0; font-size: 13px; color: #444444; line-height: 1.55; }
+.bdg-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.bdg { background: #FFFFFF; border: 1px solid #EBEBEB; border-radius: 18px; padding: 12px 6px; display: flex; flex-direction: column; align-items: center; gap: 4px; text-align: center; }
+.bdg svg { width: 76px; height: 85px; }
+.bdg b { font-size: 13px; color: #8C8C8C; }
+.bdg small { font-size: 11px; color: #8C8C8C; }
+.bdg.on { border: 2px solid #111111; }
+.bdg.on b { color: #111111; }
+
+/* ===== 길찾기: 혼잡 정보 + 동물 코스 ===== */
+.plan-cong { font-size: 11px; font-weight: 700; color: #111111; }
+.crs-title { font-size: 15px; font-weight: 800; margin-top: 4px; }
+.crs-row { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.crs { flex: none; width: 92px; border: 1px solid #EBEBEB; background: #FFFFFF; border-radius: 14px; padding: 8px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; }
+.crs b { font-size: 12px; }
+.crs small { font-size: 10px; color: #8C8C8C; }
+.crs.on { border: 2px solid #111111; background: #FFF4BF; }
+.course-card { background: #FFF4BF; border: 2px solid #111111; border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+.cc-head { display: flex; gap: 12px; align-items: center; }
+.cc-head div { display: flex; flex-direction: column; }
+.cc-head b { font-size: 17px; }
+.cc-head small { font-size: 11px; color: #444444; }
+.cc-sum { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; font-size: 13px; color: #444444; }
+.cc-sum .big { font-size: 26px; font-weight: 800; color: #111111; }
+.cc-btn { width: 100%; padding: 12px; border-radius: 12px; background: #111111; color: #FFD200; font-weight: 800; font-size: 15px; text-align: center; }
+.cc-btn.ghost { background: #FFFFFF; color: #111111; border: 1px solid #111111; padding: 8px; font-size: 13px; }
+.cc-ride { display: flex; flex-direction: column; gap: 6px; }
+.cc-ride .pass-bar { margin: 0; background: #FFFFFF; }
+.cc-ride small { font-size: 12px; }
+.start-pin { background: #111111; color: #FFD200; font-size: 11px; font-weight: 800; padding: 3px 8px; border-radius: 10px; text-align: center; white-space: nowrap; }
+.won { display: flex; align-items: center; gap: 12px; background: #FFD200; border-radius: 14px; padding: 12px; }
+.won div { display: flex; flex-direction: column; }
+.won b { font-size: 16px; }
+.won small { font-size: 12px; }
