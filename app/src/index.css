@@ -246,3 +246,170 @@ button { font-family: inherit; cursor: pointer; border: none; color: inherit; te
 .mk-tashu { width: 22px; height: 22px; padding: 2px; }
 .sheet > * { flex-shrink: 0; }
 .crs svg, .cc-head svg { flex: none; }
+
+/* ===================== v2: 앱 제작 프롬프트 반영 ===================== */
+.ico { display: inline-flex; flex: none; }
+.ico svg { width: 100%; height: 100%; }
+
+/* 시작 화면 */
+.splash-icon { width: 120px; height: 120px; }
+.splash-link { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.splash-link .arr { font-size: 20px; font-weight: 800; }
+.splash h1 { font-size: 28px; color: #111111; margin-top: 18px; }
+.splash p { font-size: 16px; color: #111111; }
+
+/* 홈 위쪽: 검색창(가장 크게) → 날씨·시간대(작게) */
+.home-top { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 600; display: flex; flex-direction: column; gap: 8px; }
+.search { height: 52px; width: 100%; background: #FFFFFF; border-radius: 16px; box-shadow: 0 3px 12px rgba(0,0,0,.16); display: flex; align-items: center; gap: 10px; padding: 0 14px; border: 2px solid #111111; }
+.search-modes { display: flex; gap: 4px; padding-right: 10px; border-right: 1px solid #D6D6D6; }
+.search-ph { flex: 1; font-size: 16px; font-weight: 700; color: #8C8C8C; }
+.home-sub { display: flex; gap: 6px; align-items: stretch; }
+.home-sub .weather { position: static; padding: 4px 10px; font-size: 12px; box-shadow: 0 2px 8px rgba(0,0,0,.12); flex: none; }
+.home-sub .weather b { font-size: 13px; }
+.band-bar.compact { position: static; flex: 1; padding: 3px; border-radius: 14px; gap: 4px; }
+.band-bar.compact .band-seg button { padding: 4px 2px; font-size: 12px; min-height: 36px; }
+.band-bar.compact .band-seg button small { font-size: 9px; }
+.band-bar.compact .band-legend { font-size: 10px; gap: 2px; padding-right: 4px; }
+.home-top + .toast, .toast { top: 170px; }
+.recenter { top: auto; bottom: 330px; }
+.route-band { position: absolute; top: 132px; left: 12px; right: 12px; z-index: 600; }
+.route-band .band-bar { position: static; }
+
+/* 대여 타이머 */
+.timer { display: flex; align-items: center; gap: 10px; background: #FFD200; border: 2px solid #111111; border-radius: 14px; padding: 6px 12px; min-height: 44px; text-align: left; }
+.timer span { flex: 1; display: flex; flex-direction: column; }
+.timer small { font-size: 11px; font-weight: 700; }
+.timer b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.timer em { font-style: normal; font-weight: 800; font-size: 13px; background: #111111; color: #FFD200; padding: 6px 10px; border-radius: 10px; }
+.timer.warn { background: #111111; color: #FFD200; animation: blink 1s infinite; }
+.timer.warn em, .timer.over em { background: #FFD200; color: #111111; }
+.timer.over { background: #111111; color: #FFFFFF; }
+@keyframes blink { 50% { opacity: .75; } }
+.route-timer { position: absolute; left: 12px; right: 12px; top: 186px; z-index: 590; }
+.guiding .route-timer { top: 120px; }
+
+/* 연계 카드 + 대여 버튼 */
+.link-card { bottom: 108px; }
+.rent-btn { background: #FFD200; border: 2px solid #111111; border-radius: 16px; display: flex; align-items: center; gap: 12px; padding: 10px 14px; min-height: 56px; text-align: left; box-shadow: 0 2px 10px rgba(0,0,0,.12); }
+.rent-btn span:last-child { display: flex; flex-direction: column; }
+.rent-btn b { font-size: 16px; }
+.rent-btn small { font-size: 12px; color: #444444; }
+.rent-btn .lc-ico.tashu { background: #FFFFFF; border-radius: 10px; width: 36px; height: 36px; padding: 6px; }
+.lc-main small { font-size: 11px; }
+
+/* 아래 버튼: 길찾기 64px 가장 크게, 양옆 작게 */
+.bottom-bar { height: 84px; }
+.side-btn { width: 48px; height: 48px; background: none; gap: 2px; }
+.side-btn small { font-size: 10px; }
+.nav-btn { width: 64px; height: 64px; margin-top: -44px; border-width: 4px; }
+.nav-ico { position: relative; display: block; width: 30px; height: 30px; }
+.nav-train { position: absolute; right: -10px; bottom: -6px; background: #111111; border-radius: 50%; padding: 2px; width: 20px !important; height: 20px !important; border: 2px solid #FFD200; }
+.nav-btn small { font-size: 11px; margin-top: 2px; }
+
+/* 지도 표시 */
+.mk-subway { width: 28px; height: 28px; border-radius: 50%; padding: 5px; border: 2px solid #FFFFFF; }
+.lbl-subway { top: 30px; font-size: 13px; font-weight: 800; }
+.mk-xfer { width: 20px; height: 20px; border-radius: 50%; background: #FFD200; border: 2px solid #111111; padding: 2px; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+.mk-bus { width: 14px; height: 14px; background: #FFFFFF; border: 3px solid #444444; border-radius: 50%; }
+.xfer-pt { width: 28px; height: 28px; border-radius: 50%; background: #FFFFFF; border: 3px solid #111111; display: flex; align-items: center; justify-content: center; font-weight: 900; font-size: 14px; }
+.dest-pin { width: 22px; height: 22px; border-radius: 50% 50% 50% 0; transform: rotate(-45deg); background: #111111; border: 4px solid #FFD200; }
+.pop { display: flex; flex-direction: column; gap: 4px; font-family: inherit; }
+.pop > b { font-size: 15px; }
+.pop-row { font-size: 12px; color: #444444; }
+.pop-row.small { font-size: 11px; color: #8C8C8C; }
+.pop-btns { display: flex; gap: 6px; margin-top: 6px; }
+.pop-btns button { flex: 1; min-height: 40px; border-radius: 10px; font-weight: 800; background: #111111; color: #FFD200; text-align: center; }
+.pop-btns button + button { background: #FFD200; color: #111111; }
+.leaflet-popup-content-wrapper { border-radius: 14px; }
+
+/* 길찾기 입력 */
+.route-fields { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 600; display: flex; align-items: center; gap: 8px; background: #FFFFFF; border-radius: 16px; padding: 8px; box-shadow: 0 3px 12px rgba(0,0,0,.16); }
+.fields { flex: 1; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.fld { min-height: 44px; border-radius: 10px; background: #F7F7F5; padding: 0 12px; display: flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left; }
+.fld.on { outline: 2px solid #111111; }
+.dot-from, .dot-to { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+.dot-from { background: #FFFFFF; border: 3px solid #111111; }
+.dot-to { background: #FFD200; border: 3px solid #111111; }
+.swap { width: 44px; height: 44px; border-radius: 12px; background: #F7F7F5; font-size: 20px; font-weight: 800; text-align: center; }
+.search-sheet { position: absolute; top: 128px; left: 12px; right: 12px; bottom: 12px; z-index: 700; background: #FFFFFF; border-radius: 16px; box-shadow: 0 3px 16px rgba(0,0,0,.2); padding: 12px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
+.search-sheet input { height: 48px; border-radius: 12px; border: 2px solid #111111; padding: 0 14px; font-size: 16px; font-family: inherit; margin-bottom: 6px; }
+.res { min-height: 48px; text-align: left; display: flex; flex-direction: column; justify-content: center; padding: 6px 8px; border-bottom: 1px solid #EBEBEB; background: none; }
+.res b { font-size: 15px; }
+.res small { font-size: 12px; color: #8C8C8C; }
+.res.close { text-align: center; align-items: center; border: none; font-weight: 800; }
+.note { font-size: 12px; color: #8C8C8C; margin: 6px 0; line-height: 1.5; }
+
+/* 세 경로 탭 */
+.rtabs { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.rtabs button { border-radius: 12px; background: #F7F7F5; padding: 8px 4px; min-height: 64px; display: flex; flex-direction: column; align-items: center; gap: 2px; text-align: center; border: 2px solid transparent; }
+.rtabs button[aria-pressed="true"] { background: #FFF4BF; border-color: #111111; }
+.rtabs button:disabled { opacity: .45; }
+.rt-name { font-size: 12px; font-weight: 800; display: flex; gap: 4px; align-items: center; }
+.rt-name em { font-style: normal; font-size: 10px; background: #111111; color: #FFD200; padding: 1px 5px; border-radius: 6px; }
+.rtabs b { font-size: 18px; }
+.rt-badges { display: flex; gap: 3px; flex-wrap: wrap; justify-content: center; }
+.rt-badges i { font-style: normal; font-size: 10px; font-weight: 700; background: #FFD200; padding: 1px 5px; border-radius: 6px; }
+.plan-detail { display: flex; flex-direction: column; gap: 10px; }
+.seg2 { display: flex; gap: 4px; background: #F7F7F5; border-radius: 12px; padding: 4px; margin-bottom: 4px; }
+.seg2 button { flex: 1; min-height: 40px; border-radius: 9px; font-weight: 800; font-size: 13px; background: none; text-align: center; }
+.seg2 button[aria-pressed="true"] { background: #111111; color: #FFD200; }
+
+/* 교통수단 막대 */
+.modebar { display: flex; gap: 3px; padding-top: 24px; }
+.mb-seg { position: relative; min-width: 34px; }
+.mb-seg > i { display: block; height: 12px; border-radius: 6px; }
+.mb-bike > i { background: #FFD200; border: 1.5px solid #111111; }
+.mb-subway > i { background: #111111; }
+.mb-bus > i { background: #444444; }
+.mb-walk > i { background: repeating-linear-gradient(90deg, #8C8C8C 0 4px, transparent 4px 7px); }
+.mb-ico { position: absolute; top: -24px; left: 0; display: flex; align-items: center; gap: 2px; white-space: nowrap; }
+.mb-ico small { font-size: 11px; font-weight: 700; }
+.mb-x { position: absolute; right: -10px; top: -3px; z-index: 2; width: 18px; height: 18px; border-radius: 50%; background: #FFFFFF; border: 2px solid #111111; font-style: normal; font-size: 10px; font-weight: 900; display: flex; align-items: center; justify-content: center; }
+.pd-sum { display: flex; align-items: baseline; gap: 10px; }
+.pd-sum .big { font-size: 28px; font-weight: 900; }
+.pd-sum .arrive { font-size: 14px; font-weight: 700; color: #444444; }
+.pd-meta { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 13px; color: #444444; }
+.steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+.steps li { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-top: 1px solid #EBEBEB; font-size: 13px; }
+.st-bike { background: #FFD200; border-radius: 50%; padding: 2px; }
+
+/* 안내 중 */
+.guide-card { position: absolute; top: 12px; left: 12px; right: 12px; z-index: 700; display: flex; align-items: center; gap: 12px; border-radius: 16px; padding: 14px; box-shadow: 0 4px 16px rgba(0,0,0,.25); border: 2px solid #111111; }
+.guide-card > div { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.guide-card small { font-size: 12px; font-weight: 700; opacity: .8; }
+.guide-card b { font-size: 18px; line-height: 1.3; }
+.guide-card em { font-style: normal; font-size: 12px; font-weight: 800; }
+.guide-card button { min-width: 56px; min-height: 44px; border-radius: 12px; font-weight: 800; }
+.g-bike { background: #FFD200; color: #111111; } .g-bike button { background: #111111; color: #FFD200; }
+.g-subway { background: #111111; color: #FFFFFF; } .g-subway button { background: #FFD200; color: #111111; }
+.g-bus { background: #444444; color: #FFFFFF; } .g-bus button { background: #FFD200; color: #111111; }
+.g-walk { background: #FFFFFF; color: #111111; } .g-walk button { background: #111111; color: #FFFFFF; }
+.arrived { display: flex; flex-direction: column; gap: 6px; background: #FFF4BF; border: 2px solid #111111; border-radius: 14px; padding: 14px; }
+.arrived b { font-size: 18px; }
+.arrived small { font-size: 13px; }
+.route-info { display: flex; flex-direction: column; gap: 4px; }
+.route-info small { color: #8C8C8C; font-size: 13px; }
+.sheet { max-height: 62%; }
+
+/* 대여 창 */
+.modal-bg { position: absolute; inset: 0; z-index: 2000; background: rgba(17,17,17,.55); display: flex; align-items: flex-end; }
+.modal { width: 100%; background: #FFFFFF; border-radius: 22px 22px 0 0; padding: 18px 16px 28px; display: flex; flex-direction: column; gap: 10px; max-height: 85%; overflow-y: auto; }
+.modal-head { display: flex; justify-content: space-between; align-items: center; }
+.modal-head b { font-size: 18px; }
+.x { width: 44px; height: 44px; font-size: 26px; background: none; text-align: center; }
+.qr-box { position: relative; border-radius: 16px; overflow: hidden; background: #111111; aspect-ratio: 1; display: flex; align-items: center; justify-content: center; }
+.qr-box video { width: 100%; height: 100%; object-fit: cover; }
+.qr-box i { position: absolute; width: 60%; aspect-ratio: 1; border: 4px solid #FFD200; border-radius: 16px; }
+.qr-box small { position: absolute; bottom: 10px; color: #FFFFFF; font-size: 12px; }
+.num-form { display: flex; gap: 8px; }
+.num-form input { flex: 1; height: 52px; border-radius: 12px; border: 2px solid #111111; padding: 0 14px; font-size: 18px; font-weight: 800; letter-spacing: 1px; font-family: inherit; text-transform: uppercase; }
+.num-form button { min-width: 96px; border-radius: 12px; background: #111111; color: #FFD200; font-weight: 800; text-align: center; }
+.err { color: #111111; background: #FFF4BF; padding: 8px 10px; border-radius: 10px; font-size: 13px; font-weight: 700; margin: 0; }
+.ret-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 4px; min-height: 56px; border-top: 1px solid #EBEBEB; background: none; text-align: left; }
+.ret-row span { display: flex; flex-direction: column; }
+.ret-row small { color: #8C8C8C; font-size: 12px; }
+.ret-row em { font-style: normal; font-weight: 800; background: #FFD200; padding: 8px 12px; border-radius: 10px; }
+.rent-now { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 10px; }
+.rent-now b { font-size: 20px; }
+.rent-now .warn { background: #111111; color: #FFD200; padding: 2px 8px; border-radius: 8px; }
+.rent-card .hist:first-of-type { border-top: 1px solid #EBEBEB; padding-top: 12px; margin-top: 8px; }

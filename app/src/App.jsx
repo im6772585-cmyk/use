@@ -1,40 +1,32 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@maplibre/maplibre-gl-leaflet';
 import { mapStyle, C } from './mapStyle.js';
-import { CONG, COURSES, STATIONS } from './data.js';
+import { CONG, COURSES, SUBWAY_LOAD } from './data.js';
 import { ART } from './art.js';
-import { bikeSvg, myLocationHtml, trainSvg, personSvg } from './rider.js';
+import { bikeSvg, myLocationHtml, trainSvg, personSvg, busSvg, walkSvg, qrSvg, searchSvg, medalSvg } from './rider.js';
+import { planAll, SUBWAY, TASHU, TRANSFER, nearest, dist, KCAL_PER_KM, CO2_G_PER_KM } from './plan.js';
 
 const DAEJEON_CENTER = [36.3504, 127.3845]; // 대전시청
-const DAEJEON_BBOX = '36.20,127.25,36.50,127.50';
 const OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter', 'https://overpass.kumi.systems/api/interpreter'];
-
-const DESTINATIONS = [
-  { name: '대전역', pos: [36.3326, 127.4342] },
-  { name: '엑스포과학공원', pos: [36.3758, 127.3866] },
-  { name: '한밭수목원', pos: [36.3687, 127.388] },
-  { name: '대전시청', pos: [36.3504, 127.3845] },
-  { name: '충남대학교', pos: [36.3663, 127.3443] },
-  { name: 'KAIST', pos: [36.3721, 127.3604] },
-  { name: '유성온천역', pos: [36.3538, 127.3418] },
+const PLACES = [
+  { name: '대전역', pos: [36.3326, 127.4342], kind: '명소' },
+  { name: '엑스포과학공원', pos: [36.3758, 127.3866], kind: '명소' },
+  { name: '한밭수목원', pos: [36.3687, 127.388], kind: '명소' },
+  { name: '대전시청', pos: [36.3504, 127.3845], kind: '명소' },
+  { name: '충남대학교', pos: [36.3663, 127.3443], kind: '명소' },
+  { name: 'KAIST', pos: [36.3721, 127.3604], kind: '명소' },
+  { name: '서대전역', pos: [36.3227, 127.4038], kind: '명소' },
+  { name: '대전월드컵경기장', pos: [36.3653, 127.3253], kind: '명소' },
+  ...SUBWAY.map((s) => ({ name: s.name, pos: s.pos, kind: '도시철도' })),
+  ...TASHU.map((t) => ({ name: t.name, pos: t.pos, kind: `타슈 대여소 · ${t.dong}` })),
 ];
-
-const SPEED = { bike: 15, walk: 4.5 }; // km/h
-const SUBWAY_WAIT_MIN = 4;
-const MIN_PER_STATION = 2;
-// 대전 도시철도 1호선 (판암 → 반석 순서). 좌표 출처: Wikidata
-const SUBWAY = [
-  ['판암역', 36.3169, 127.458], ['신흥역', 36.3196, 127.449], ['대동역', 36.3295, 127.443], ['대전역', 36.3313, 127.433],
-  ['중앙로역', 36.3286, 127.426], ['중구청역', 36.3249, 127.42], ['서대전네거리역', 36.3224, 127.413], ['오룡역', 36.3283, 127.405],
-  ['용문역', 36.3382, 127.393], ['탄방역', 36.3454, 127.385], ['시청역', 36.3514, 127.387], ['정부청사역', 36.3577, 127.381],
-  ['갈마역', 36.3575, 127.373], ['월평역', 36.3583, 127.364], ['갑천역', 36.3542, 127.355], ['유성온천역', 36.3537, 127.341],
-  ['구암역', 36.3566, 127.331], ['현충원역', 36.359, 127.321], ['월드컵경기장역', 36.3669, 127.318], ['노은역', 36.3741, 127.318],
-  ['지족역', 36.3841, 127.32], ['반석역', 36.3921, 127.315],
-].map(([name, lat, lon], i) => ({ name, pos: [lat, lon], idx: i }));
-const dist = (a, b) => L.latLng(a).distanceTo(L.latLng(b)) / 1000; // km
-const mins = (km, kmh) => Math.max(1, Math.round((km / kmh) * 60));
+const MODE_ICON = { bike: bikeSvg, subway: trainSvg, bus: busSvg, walk: walkSvg };
+const MODE_NM = { bike: '타슈', subway: '지하철', bus: '버스', walk: '걷기' };
+const Icon = ({ svg, size = 20, className = '' }) => <span className={`ico ${className}`} style={{ width: size, height: size }} dangerouslySetInnerHTML={{ __html: svg }} />;
+const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+const store = { get: (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch { return d; } }, set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* 저장 불가 */ } } };
 
 // ---------- 실시간 위치 ----------
 function useLocation() {
@@ -97,76 +89,6 @@ function WeatherChip({ pos }) {
   );
 }
 
-// ---------- 대중교통 + 타슈 데이터 (OpenStreetMap) ----------
-function dedupe(list) {
-  const seen = new Map();
-  for (const s of list) if (!seen.has(s.name)) seen.set(s.name, s);
-  return [...seen.values()];
-}
-async function loadNearby(center) {
-  const [lat, lon] = center;
-  const q = `[out:json][timeout:20];node["highway"="bus_stop"](around:900,${lat},${lon});out body;`;
-  let j = null;
-  for (const url of OVERPASS) {
-    try {
-      const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), signal: AbortSignal.timeout(9000) });
-      const t = await r.text();
-      if (t.startsWith('{')) { j = JSON.parse(t); break; }
-    } catch { /* 다음 서버 시도 */ }
-  }
-  if (!j) throw new Error('overpass unavailable');
-  return { bus: j.elements.map((e) => ({ name: e.tags.name || '버스정류장', pos: [e.lat, e.lon] })) };
-}
-const nearest = (list, p) => list.reduce((best, s) => { const d = dist(p, s.pos); return !best || d < best.d ? { ...s, d } : best; }, null);
-
-// 타슈 대여소 1,414곳 (대여이력의 실제 좌표) 중 반경 1.5km 안
-const TASHU = STATIONS.map(([name, lat, lon, rides]) => ({ name, pos: [lat, lon], rides }));
-const tashuNear = (c) => TASHU.filter((s) => Math.abs(s.pos[0] - c[0]) < 0.015 && Math.abs(s.pos[1] - c[1]) < 0.018 && dist(c, s.pos) < 1.5);
-
-function useTransit(center) {
-  const key = `${center[0].toFixed(3)},${center[1].toFixed(3)}`;
-  const [data, setData] = useState({ subway: SUBWAY, tashu: tashuNear(center), bus: [], loaded: false, failed: false });
-  useEffect(() => {
-    let alive = true;
-    const c = key.split(',').map(Number);
-    setData((d) => ({ ...d, tashu: tashuNear(c) }));
-    loadNearby(c)
-      .then((n) => alive && setData((d) => ({ ...d, ...n, loaded: true, failed: false })))
-      .catch(() => alive && setData((d) => ({ ...d, loaded: true, failed: true })));
-    return () => { alive = false; };
-  }, [key]);
-  return data;
-}
-
-// 크기 = 중요도: 지하철 > 타슈 대여소 > 버스정류장
-const icons = {
-  subway: (name) => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
-    html: `<div class="mk mk-subway">${trainSvg()}</div><div class="lbl lbl-subway">${name}</div>` }),
-  tashu: (name) => L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11],
-    html: `<div class="mk mk-tashu">${bikeSvg('#111111')}</div><div class="lbl lbl-tashu">${name}</div>` }),
-  bus: (name) => L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6],
-    html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${name}</div>` }),
-};
-
-function useTransitLayer(mapRef, transit, center) {
-  useEffect(() => {
-    const map = mapRef.current;
-    if (!map) return;
-    const g = L.layerGroup().addTo(map);
-    transit.bus.forEach((s) => L.marker(s.pos, { icon: icons.bus(s.name), zIndexOffset: 100 }).addTo(g));
-    transit.tashu.forEach((s) => L.marker(s.pos, { icon: icons.tashu(s.name), zIndexOffset: 400 }).addTo(g));
-    transit.subway.filter((s) => dist(center, s.pos) < 6).forEach((s) => L.marker(s.pos, { icon: icons.subway(s.name), zIndexOffset: 700 }).addTo(g));
-    const zoomClass = () => {
-      const el = map.getContainer(); const z = map.getZoom();
-      el.classList.toggle('z-bus-lbl', z >= 17);
-      el.classList.toggle('z-tashu-lbl', z >= 18);
-    };
-    zoomClass(); map.on('zoomend', zoomClass);
-    return () => { map.off('zoomend', zoomClass); g.remove(); };
-  }, [mapRef, transit, center]);
-}
-
-
 // ---------- 시간대 (출근 · 퇴근 · 평시) + 혼잡 구간 ----------
 const BANDS = [
   { key: 'am', nm: '출근', sub: '07–09시' },
@@ -196,29 +118,9 @@ function useCongestion(mapRef, band, dim = false) {
 }
 
 // 자전거 경로가 혼잡·정체 도로를 얼마나 지나는지 (35m 이내를 같은 도로로 봄)
-function congestedKm(geo, band) {
-  const segs = CONG.filter((c) => c[3][band] >= 2);
-  if (!segs.length) return 0;
-  const k = 111000, kx = 111000 * Math.cos(36.35 * Math.PI / 180);
-  const xy = ([lat, lon]) => [lon * kx, lat * k];
-  const segXY = segs.map(([a, b]) => [xy(a), xy(b)]);
-  const near = (p) => segXY.some(([a, b]) => {
-    const dx = b[0] - a[0], dy = b[1] - a[1], len = dx * dx + dy * dy || 1;
-    const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len));
-    return Math.hypot(p[0] - a[0] - t * dx, p[1] - a[1] - t * dy) < 35;
-  });
-  const pts = geo.coordinates.map(([lon, lat]) => [lat, lon]);
-  let m = 0;
-  for (let i = 1; i < pts.length; i++) {
-    const mid = [(pts[i - 1][0] + pts[i][0]) / 2, (pts[i - 1][1] + pts[i][1]) / 2];
-    if (near(xy(mid))) m += dist(pts[i - 1], pts[i]);
-  }
-  return m;
-}
-
-function BandBar({ band, setBand }) {
+function BandBar({ band, setBand, compact }) {
   return (
-    <div className="band-bar">
+    <div className={compact ? 'band-bar compact' : 'band-bar'}>
       <div className="band-seg">
         {BANDS.map((b, i) => (
           <button key={b.key} aria-pressed={band === i} onClick={() => setBand(i)}>{b.nm}<small>{b.sub}</small></button>
@@ -276,6 +178,7 @@ function BadgeScreen({ back, openCourse }) {
           <div className="bdg-progress"><b>{n}/6</b><div className="pass-bar"><div style={{ width: `${(n / 6) * 100}%` }} /></div></div>
           <p className="bdg-desc">길안내의 "오늘은 어떤 경로로 자전거를 타볼까?"에서 동물 모양 코스를 끝까지 달리면 그 모양의 배지를 받아요. 배지를 누르면 그 코스로 바로 가요.</p>
         </section>
+        <h3 className="crs-title">오늘은 어떤 경로로 자전거를 타볼까?</h3>
         <div className="bdg-grid">
           {COURSES.map((c) => (
             <button key={c.id} className={got[c.id] ? 'bdg on' : 'bdg'} onClick={() => openCourse(c.id)}>
@@ -329,262 +232,543 @@ function MapFail() {
   );
 }
 
-// ---------- 스플래시 ----------
-function Splash({ onDone }) {
-  useEffect(() => { const t = setTimeout(onDone, 2000); return () => clearTimeout(t); }, [onDone]);
+
+// ---------- 지도 표시: 도시철도역 > 환승 대여소 > 일반 대여소 > 버스정류장 ----------
+async function loadBus(center) {
+  const [lat, lon] = center;
+  const q = `[out:json][timeout:20];node["highway"="bus_stop"](around:900,${lat},${lon});out body;`;
+  for (const url of OVERPASS) {
+    try {
+      const r = await fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), signal: AbortSignal.timeout(9000) });
+      const t = await r.text();
+      if (t.startsWith('{')) return JSON.parse(t).elements.map((e) => ({ name: e.tags.name || '버스정류장', pos: [e.lat, e.lon] }));
+    } catch { /* 다음 서버 */ }
+  }
+  throw new Error('bus unavailable');
+}
+function useBus(center) {
+  const key = `${center[0].toFixed(3)},${center[1].toFixed(3)}`;
+  const [bus, setBus] = useState({ list: [], loaded: false, failed: false });
+  useEffect(() => {
+    let alive = true;
+    loadBus(key.split(',').map(Number)).then((list) => alive && setBus({ list, loaded: true })).catch(() => alive && setBus({ list: [], loaded: true, failed: true }));
+    return () => { alive = false; };
+  }, [key]);
+  return bus;
+}
+
+const TRANSFER_IDS = new Set(TRANSFER.flatMap((t) => t.list.slice(0, 1).map((s) => s.id)));
+const peakName = (r) => { const per = [r[0] / 2, r[1] / 2, r[2] / 20]; const i = per.indexOf(Math.max(...per)); return ['출근 07–09시', '퇴근 17–19시', '평시'][i]; };
+const stationPopup = (t) => `
+  <div class="pop">
+    <b>${t.name}</b>
+    <div class="pop-row">${t.addr || '주소 정보 없음'} · ${t.dong}</div>
+    <div class="pop-row">좌표 ${t.pos[0].toFixed(6)}, ${t.pos[1].toFixed(6)}</div>
+    <div class="pop-row">대여 ${t.total.toLocaleString()}건 (8개월) · 시간당 가장 많은 때: <b>${peakName(t.rents)}</b></div>
+    <div class="pop-row small">출근 ${t.rents[0].toLocaleString()} · 퇴근 ${t.rents[1].toLocaleString()} · 평시 ${t.rents[2].toLocaleString()}건</div>
+    <div class="pop-btns"><button data-act="from" data-id="${t.id}">출발지로</button><button data-act="to" data-id="${t.id}">목적지로</button></div>
+  </div>`;
+
+function useStationLayers(mapRef, bus, onPick) {
+  const pickRef = useRef(onPick); pickRef.current = onPick;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const g = L.layerGroup().addTo(map);
+    const canvas = L.canvas({ padding: 0.3 });
+    // 일반 대여소: 지름 10px 노란 점
+    TASHU.forEach((t) => {
+      if (TRANSFER_IDS.has(t.id)) return;
+      L.circleMarker(t.pos, { renderer: canvas, radius: 5, color: C.K, weight: 1, fillColor: C.Y, fillOpacity: 1 }).bindPopup(stationPopup(t), { maxWidth: 260 }).addTo(g);
+    });
+    // 환승 대여소: 지름 20px 노란 원 + 자전거, 역과 점선 연결
+    TRANSFER.forEach(({ station, list }) => {
+      const t = list[0]; if (!t) return;
+      L.polyline([t.pos, station.pos], { color: C.K, weight: 2, dashArray: '2 5', interactive: false }).addTo(g);
+      L.marker(t.pos, { zIndexOffset: 500, icon: L.divIcon({ className: '', iconSize: [20, 20], iconAnchor: [10, 10], html: `<div class="mk mk-xfer">${bikeSvg('#111111')}</div>` }) })
+        .bindPopup(stationPopup(t), { maxWidth: 260 }).addTo(g);
+    });
+    // 도시철도역: 지름 28px — 지도에서 가장 눈에 띄게
+    SUBWAY.forEach((s) => {
+      L.marker(s.pos, { zIndexOffset: 800, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: `<div class="mk mk-subway">${trainSvg()}</div><div class="lbl lbl-subway">${s.name}</div>` }) })
+        .bindTooltip(`${s.name} · 하루 평균 ${(SUBWAY_LOAD[s.name.replace(/역$/, '')]?.daily || 0).toLocaleString()}명`, { direction: 'top', offset: [0, -14] }).addTo(g);
+    });
+    // 버스정류장: 확대했을 때만 지름 14px
+    const busG = L.layerGroup();
+    bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: `<div class="mk mk-bus"></div><div class="lbl lbl-bus">${b.name}</div>` }) }).addTo(busG));
+    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
+    zoomCheck(); map.on('zoomend', zoomCheck);
+    const onPop = (e) => {
+      e.popup.getElement()?.querySelectorAll('button[data-act]').forEach((btn) => btn.addEventListener('click', () => {
+        const t = TASHU.find((x) => x.id === btn.dataset.id);
+        map.closePopup();
+        pickRef.current?.(btn.dataset.act, { name: t.name, pos: t.pos });
+      }));
+    };
+    map.on('popupopen', onPop);
+    return () => { map.off('zoomend', zoomCheck); map.off('popupopen', onPop); g.remove(); };
+  }, [mapRef, bus, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
+}
+
+// ---------- 타슈 대여 (QR · 자전거 번호, 무료 59분) ----------
+const FREE_MIN = 59;
+function useRental() {
+  const [rental, setRental] = useState(() => store.get('tashu-rental', null));
+  const [history, setHistory] = useState(() => store.get('tashu-history', []));
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => { if (!rental) return; const t = setInterval(() => setNow(Date.now()), 1000); return () => clearInterval(t); }, [rental]);
+  const left = rental ? FREE_MIN * 60 - Math.floor((now - rental.start) / 1000) : 0;
+  const warnedRef = useRef({});
+  useEffect(() => {
+    if (!rental) return;
+    const notify = (msg) => { try { if (Notification?.permission === 'granted') new Notification('타슈 내비', { body: msg }); } catch { /* 알림 불가 */ } navigator.vibrate?.(300); };
+    if (left <= 300 && left > 0 && !warnedRef.current.five) { warnedRef.current.five = true; notify('무료 이용 시간이 5분 남았어요. 가까운 대여소에 반납해 주세요.'); }
+    if (left <= 0 && !warnedRef.current.over) { warnedRef.current.over = true; notify('무료 59분이 지났어요. 추가 요금이 붙을 수 있어요.'); }
+  }, [left, rental]);
+  const start = (bike) => {
+    const r = { bike, start: Date.now() };
+    warnedRef.current = {};
+    store.set('tashu-rental', r); setRental(r);
+    try { Notification?.requestPermission?.(); } catch { /* 알림 불가 */ }
+  };
+  const finish = (station) => {
+    const h = [{ bike: rental.bike, start: rental.start, end: Date.now(), station: station.name }, ...history].slice(0, 30);
+    store.set('tashu-history', h); setHistory(h);
+    store.set('tashu-rental', null); setRental(null);
+  };
+  return { rental, left, start, finish, history };
+}
+const fmtLeft = (s) => { const a = Math.abs(s); return `${s < 0 ? '+' : ''}${Math.floor(a / 60)}:${String(a % 60).padStart(2, '0')}`; };
+
+function RentTimer({ rent, onReturn }) {
+  if (!rent.rental) return null;
+  const cls = rent.left <= 0 ? 'timer over' : rent.left <= 300 ? 'timer warn' : 'timer';
   return (
-    <div className="splash" onClick={onDone}>
-      <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
-      <h1>타슈 내비</h1>
-      <p>대중교통 + 타슈, 한 번에</p>
+    <button className={cls} onClick={onReturn}>
+      <Icon svg={bikeSvg('currentColor')} size={20} />
+      <span><small>{rent.rental.bike} · {rent.left <= 0 ? '무료 시간 초과' : '무료 남은 시간'}</small><b>{fmtLeft(rent.left)}</b></span>
+      <em>반납</em>
+    </button>
+  );
+}
+
+function RentModal({ onClose, onStart }) {
+  const [tab, setTab] = useState('qr');
+  const [num, setNum] = useState('');
+  const [err, setErr] = useState('');
+  const videoRef = useRef(null);
+  const supported = typeof window !== 'undefined' && 'BarcodeDetector' in window && navigator.mediaDevices?.getUserMedia;
+  useEffect(() => {
+    if (tab !== 'qr' || !supported) return;
+    let stream, timer, alive = true;
+    (async () => {
+      try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+        if (!alive) return;
+        videoRef.current.srcObject = stream; await videoRef.current.play();
+        const det = new window.BarcodeDetector({ formats: ['qr_code'] });
+        timer = setInterval(async () => {
+          const codes = await det.detect(videoRef.current).catch(() => []);
+          if (codes[0]) {
+            const m = codes[0].rawValue.match(/[A-Z]{2}\d-?\d{3,5}/i);
+            clearInterval(timer);
+            onStart(m ? m[0].toUpperCase() : codes[0].rawValue.slice(0, 20));
+          }
+        }, 500);
+      } catch { setErr('카메라를 쓸 수 없어요. 자전거 번호를 입력해 주세요.'); setTab('num'); }
+    })();
+    return () => { alive = false; clearInterval(timer); stream?.getTracks().forEach((t) => t.stop()); };
+  }, [tab, supported, onStart]);
+  const submit = (e) => {
+    e.preventDefault();
+    const v = num.trim().toUpperCase();
+    if (!/^[A-Z]{2}\d-?\d{3,5}$/.test(v)) { setErr('자전거 번호 형식을 확인해 주세요 (예: DJ3-5015)'); return; }
+    onStart(v.includes('-') ? v : `${v.slice(0, 3)}-${v.slice(3)}`);
+  };
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><b>타슈 대여하기</b><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
+        <div className="seg2">
+          <button aria-pressed={tab === 'qr'} onClick={() => setTab('qr')}>QR 스캔</button>
+          <button aria-pressed={tab === 'num'} onClick={() => setTab('num')}>번호 입력</button>
+        </div>
+        {tab === 'qr' ? (
+          supported ? <div className="qr-box"><video ref={videoRef} playsInline muted /><i /><small>자전거 핸들의 QR 코드를 네모 안에 맞춰 주세요</small></div>
+            : <p className="note">이 브라우저는 QR 읽기를 지원하지 않아요. 번호 입력을 이용해 주세요.</p>
+        ) : (
+          <form onSubmit={submit} className="num-form">
+            <input value={num} onChange={(e) => { setNum(e.target.value); setErr(''); }} placeholder="DJ3-5015" autoFocus inputMode="text" />
+            <button type="submit">대여 시작</button>
+          </form>
+        )}
+        {err && <p className="err">{err}</p>}
+        <p className="note">대여하면 무료 59분 타이머가 시작돼요. 5분 남으면 알려 드려요.<br />※ 앱 시연판이라 실제 자전거 잠금은 풀리지 않아요.</p>
+      </div>
     </div>
   );
 }
 
-// ---------- 메인 지도 ----------
-function Home({ loc, go, band, setBand }) {
+function ReturnModal({ loc, rent, onClose }) {
+  const near = useMemo(() => TASHU.map((t) => ({ ...t, d: dist(loc.pos, t.pos) })).sort((a, b) => a.d - b.d).slice(0, 4), [loc.pos]);
+  return (
+    <div className="modal-bg" onClick={onClose}>
+      <div className="modal" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-head"><b>가까운 대여소에 반납</b><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
+        <p className="note">{rent.rental.bike} · 이용 {Math.max(1, Math.round((FREE_MIN * 60 - rent.left) / 60))}분</p>
+        {near.map((t) => (
+          <button key={t.id} className="ret-row" onClick={() => { rent.finish(t); onClose(); }}>
+            <span><b>{t.name}</b><small>{t.dong} · {Math.round(t.d * 1000)}m</small></span><em>여기에 반납</em>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+
+// ---------- 시작 화면 ----------
+function Splash({ onDone }) {
+  useEffect(() => { const t = setTimeout(onDone, 2200); return () => clearTimeout(t); }, [onDone]);
+  return (
+    <div className="splash" onClick={onDone}>
+      <div className="splash-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
+      <div className="splash-link">
+        <Icon svg={busSvg()} size={40} /><span className="arr">⇄</span><Icon svg={trainSvg('#111111')} size={40} /><span className="arr">⇄</span><Icon svg={bikeSvg('#111111')} size={40} />
+      </div>
+      <h1>올라타슈 내려타슈</h1>
+      <p>버스·지하철 그리고 타슈</p>
+    </div>
+  );
+}
+
+// ---------- 홈 (지도) ----------
+function Home({ loc, go, band, setBand, rent, openRent, openReturn, pick }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
   const [follow, setFollow] = useState(true);
-  const transit = useTransit(loc.pos);
+  const bus = useBus(loc.pos);
   useMeMarker(mapRef, loc.pos, follow);
-  useTransitLayer(mapRef, transit, loc.pos);
   useCongestion(mapRef, band);
+  useStationLayers(mapRef, bus.list, pick);
   useEffect(() => {
     const m = mapRef.current; if (!m) return;
     const off = () => setFollow(false);
     m.on('dragstart', off); return () => m.off('dragstart', off);
-  }, [mapRef]);
+  }, [mapRef, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const sub = nearest(transit.subway, loc.pos);
-  const tashu = nearest(transit.tashu, loc.pos);
-  const bus = nearest(transit.bus, loc.pos);
-  const focus = (s) => s && mapRef.current?.setView(s.pos, 17);
-
+  const sub = nearest(SUBWAY, loc.pos);
+  const xfer = TRANSFER[sub.idx].list[0];
   return (
     <div className="screen">
       <div ref={el} className="map" /><MapFail />
-      <WeatherChip pos={loc.pos} />
-      <BandBar band={band} setBand={setBand} />
+      <div className="home-top">
+        <button className="search" onClick={() => go('route')}>
+          <span className="search-modes"><Icon svg={busSvg()} size={20} /><Icon svg={trainSvg('#111111')} size={20} /><Icon svg={bikeSvg('#111111')} size={20} /></span>
+          <span className="search-ph">어디로 갈까요?</span>
+          <Icon svg={searchSvg()} size={22} />
+        </button>
+        <div className="home-sub">
+          <WeatherChip pos={loc.pos} />
+          <BandBar band={band} setBand={setBand} compact />
+        </div>
+        <RentTimer rent={rent} onReturn={openReturn} />
+      </div>
       {loc.error && <div className="toast">{loc.error}</div>}
-      <button className="badge-fab" onClick={() => go('badges')}><Medal id="star" got size={30} /><small>배지</small></button>
       <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
-      {/* 연계 카드: 지하철(가장 크게) > 타슈 > 버스 */}
       <div className="link-card">
-        {(
-          <>
-            <button className="lc-main" onClick={() => focus(sub)}>
-              <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
-              <div><small>가까운 지하철</small><b>{sub ? sub.name : '없음'}</b></div>
-              {sub && <div className="lc-time"><b>타슈 {mins(sub.d, SPEED.bike)}분</b><small>{sub.d.toFixed(1)}km</small></div>}
-            </button>
-            <div className="lc-row">
-              <button className="lc-sub" onClick={() => focus(tashu)}>
-                <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
-                <div><small>{tashu ? `타슈 · ${tashu.name}` : '타슈 대여소'}</small><b>{tashu ? `도보 ${mins(tashu.d * 1.2, SPEED.walk)}분` : '1.5km 안에 없음'}</b></div>
-              </button>
-              <button className="lc-mini" onClick={() => focus(bus)}>
-                <span className="lc-ico bus" />
-                <div><small>버스</small><b>{bus ? `${Math.round(bus.d * 1000)}m` : !transit.loaded ? '…' : transit.failed ? '정보 없음' : '–'}</b></div>
-              </button>
-            </div>
-          </>
+        {!rent.rental && (
+          <button className="rent-btn" onClick={openRent}>
+            <span className="lc-ico tashu" dangerouslySetInnerHTML={{ __html: qrSvg() }} />
+            <span><b>타슈 대여하기</b><small>QR 스캔 · 무료 59분</small></span>
+          </button>
         )}
+        <button className="lc-main" onClick={() => mapRef.current?.setView(sub.pos, 17)}>
+          <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
+          <div><small>가까운 지하철 · 환승 대여소 {xfer ? xfer.name : '없음'}</small><b>{sub.name}</b></div>
+          <div className="lc-time"><b>타슈 {Math.max(1, Math.round(sub.d / 13 * 60))}분</b><small>{sub.d.toFixed(1)}km</small></div>
+        </button>
       </div>
 
       <nav className="bottom-bar">
-        <button className="side-btn" onClick={() => go('left')}><span dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} /><small>대여소</small></button>
-        <button className="nav-btn" onClick={() => go('route')} aria-label="최적 경로 길찾기"><span>➤</span><small>길찾기</small></button>
-        <button className="side-btn" onClick={() => go('right')}><span dangerouslySetInnerHTML={{ __html: personSvg() }} /><small>내 정보</small></button>
+        <button className="side-btn" onClick={() => go('badges')}><Icon svg={medalSvg()} size={24} /><small>배지</small></button>
+        <button className="nav-btn" onClick={() => go('route')} aria-label="길찾기">
+          <span className="nav-ico"><Icon svg={bikeSvg('#111111')} size={30} /><Icon svg={trainSvg('#FFD200')} size={18} className="nav-train" /></span><small>길찾기</small>
+        </button>
+        <button className="side-btn" onClick={() => go('my')}><Icon svg={personSvg()} size={24} /><small>MY</small></button>
       </nav>
     </div>
   );
 }
 
-// ---------- 최적 경로 (타슈 + 지하철 연계) ----------
-async function bikeRoute(a, b) {
-  try {
-    const r = await fetch(`https://routing.openstreetmap.de/routed-bike/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`);
-    const j = await r.json();
-    const rt = j.routes[0];
-    return { geo: rt.geometry, km: rt.distance / 1000, exact: true };
-  } catch {
-    return { geo: { type: 'LineString', coordinates: [[a[1], a[0]], [b[1], b[0]]] }, km: dist(a, b) * 1.3, exact: false };
+// ---------- 길찾기: 세 경로 비교 + 안내 ----------
+const LEG_STYLE = {
+  bike: { color: C.Y, weight: 6 },
+  subway: { color: C.K, weight: 6 },
+  bus: { color: C.K2, weight: 6 },
+  walk: { color: C.K3, weight: 4, dashArray: '1 8', lineCap: 'round' },
+};
+function ModeBar({ legs }) {
+  const total = legs.reduce((a, l) => a + l.min, 0);
+  return (
+    <div className="modebar">
+      {legs.map((l, i) => (
+        <div key={i} className={`mb-seg mb-${l.mode}`} style={{ flexGrow: Math.max(l.min, total * 0.08) }}>
+          <span className="mb-ico"><Icon svg={MODE_ICON[l.mode](l.mode === 'subway' ? '#111111' : '#111111')} size={20} /><small>{l.min}분</small></span>
+          <i />
+          {i < legs.length - 1 && l.mode !== 'walk' && legs[i + 1].mode !== 'walk' && <em className="mb-x">⇄</em>}
+        </div>
+      ))}
+    </div>
+  );
+}
+function stepsOf(p) {
+  const s = [];
+  for (const l of p.legs) {
+    if (l.mode === 'walk') s.push({ mode: 'walk', text: `${l.label} · ${l.min}분`, to: l.geo.coordinates.at(-1) });
+    if (l.mode === 'subway') { s.push({ mode: 'subway', text: `${l.from.name} 승차 (${l.from.name.replace(/역$/, '')} 방면 대기 약 ${l.wait}분)`, to: [l.from.pos[1], l.from.pos[0]] }); s.push({ mode: 'subway', text: `${l.to.name} 하차 · ${l.stops}정거장`, to: [l.to.pos[1], l.to.pos[0]] }); }
+    if (l.mode === 'bus') s.push({ mode: 'bus', text: l.label, to: l.geo.coordinates.at(-1) });
+    if (l.mode === 'bike') {
+      if (l.rent) s.push({ mode: 'bike', text: `${l.rent.name} 대여소에서 타슈 대여`, to: [l.rent.pos[1], l.rent.pos[0]] });
+      s.push({ mode: 'bike', text: `${l.min}분 주행 · ${l.km.toFixed(1)}km${l.congKm >= 0.05 ? ` (혼잡 도로 ${l.congKm.toFixed(1)}km)` : ''}`, to: l.geo.coordinates.at(-1) });
+      if (l.ret) s.push({ mode: 'bike', text: `${l.ret.name} 대여소에 반납`, to: [l.ret.pos[1], l.ret.pos[0]] });
+    }
   }
+  return s;
 }
 
-function RouteScreen({ loc, back, band, setBand, initialCourse }) {
+function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, openRent, openReturn }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
   const layerRef = useRef(null);
-  const transit = useTransit(loc.pos);
-  const [dest, setDest] = useState(null);
+  const bus = useBus(loc.pos);
+  const [from, setFrom] = useState(trip?.from || null); // null = 현재 위치
+  const [to, setTo] = useState(trip?.to || null);
+  const [editing, setEditing] = useState(trip?.to ? null : 'to');
+  const [q, setQ] = useState('');
+  const [bikeMode, setBikeMode] = useState('avoid');
   const [plans, setPlans] = useState(null);
-  const [sel, setSel] = useState(0);
+  const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [guide, setGuide] = useState(null); // { steps, i }
+  const [arrived, setArrived] = useState(false);
   const [course, setCourse] = useState(null);
   const [riding, setRiding] = useState(false);
   const [visited, setVisited] = useState(() => new Set());
   const [won, setWon] = useState(null);
-  useMeMarker(mapRef, loc.pos, riding);
-  useTransitLayer(mapRef, transit, loc.pos);
-  useCongestion(mapRef, band, !!plans || !!course);
+  const origin = from || { name: loc.live ? '현재 위치' : '현재 위치 (대전시청 기준)', pos: loc.pos, here: true };
 
-  const draw = useCallback((plan) => {
-    const map = mapRef.current;
+  useMeMarker(mapRef, loc.pos, !!guide || riding);
+  useCongestion(mapRef, band, !!plans || !!course);
+  useStationLayers(mapRef, bus.list, (act, place) => { if (act === 'from') setFrom(place); else setTo(place); setEditing(null); });
+
+  // 지도를 눌러 목적지 정하기
+  useEffect(() => {
+    const map = mapRef.current; if (!map) return;
+    const onClick = (e) => { if (guide || course) return; setTo({ name: '지도에서 고른 곳', pos: [e.latlng.lat, e.latlng.lng] }); setEditing(null); };
+    map.on('click', onClick); return () => map.off('click', onClick);
+  }, [mapRef, mapRef.current, guide, course]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 출발·도착·시간대·자전거 기준이 바뀌면 세 경로 다시 계산
+  const originKey = from ? from.pos.join() : 'here';
+  useEffect(() => {
+    if (!to || course) return;
+    let alive = true;
+    setLoading(true);
+    planAll(origin.pos, to.pos, band, bikeMode).then((ps) => {
+      if (!alive) return;
+      setPlans(ps);
+      setTab((t) => (ps[t]?.none ? ps.findIndex((p) => p.fastest) : plans ? t : ps.findIndex((p) => p.fastest)));
+      setLoading(false);
+    });
+    return () => { alive = false; };
+  }, [to, originKey, band, bikeMode, course]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // 고른 경로만 굵게, 나머지는 흐리게
+  useEffect(() => {
+    const map = mapRef.current; if (!map || !plans || course) return;
     if (layerRef.current) layerRef.current.remove();
     const g = L.layerGroup().addTo(map); layerRef.current = g;
-    const all = [];
-    for (const leg of plan.legs) {
-      const style = leg.mode === 'subway' ? { color: C.K, weight: 6 }
-        : leg.mode === 'walk' ? { color: C.K3, weight: 5, dashArray: '1 9', lineCap: 'round' }
-        : { color: C.Y, weight: 8 };
-      const line = L.geoJSON(leg.geo, { style }).addTo(g); all.push(line);
-    }
-    L.marker(plan.dest, { icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [32, 32], iconAnchor: [16, 30] }) }).addTo(g);
-    map.fitBounds(L.featureGroup(all).getBounds(), { padding: [60, 60], paddingBottomRight: [40, 300] });
-  }, [mapRef]);
-
-  const find = async (d) => {
-    setDest(d); setLoading(true); setPlans(null); setCourse(null); setRiding(false);
-    const me = loc.pos;
-    const bikeOnly = await bikeRoute(me, d.pos);
-    const options = [{
-      title: '타슈만 타기', exact: bikeOnly.exact, dest: d.pos,
-      legs: [{ mode: 'bike', geo: bikeOnly.geo, min: mins(bikeOnly.km, SPEED.bike), label: `타슈 ${bikeOnly.km.toFixed(1)}km` }],
-    }];
-    const s1 = nearest(SUBWAY, me), s2 = nearest(SUBWAY, d.pos);
-    if (s1 && s2 && s1.name !== s2.name && s1.d < 3 && s2.d < 1.5) {
-      const b1 = await bikeRoute(me, s1.pos);
-      const stops = Math.abs(s1.idx - s2.idx);
-      const lineCoords = SUBWAY.slice(Math.min(s1.idx, s2.idx), Math.max(s1.idx, s2.idx) + 1).map((s) => [s.pos[1], s.pos[0]]);
-      options.push({
-        title: '타슈 + 지하철', exact: b1.exact, dest: d.pos,
-        legs: [
-          { mode: 'bike', geo: b1.geo, min: mins(b1.km, SPEED.bike), label: `타슈 → ${s1.name}` },
-          { mode: 'subway', geo: { type: 'LineString', coordinates: lineCoords }, min: stops * MIN_PER_STATION + SUBWAY_WAIT_MIN, label: `지하철 ${s1.name} → ${s2.name} (${stops}정거장)` },
-          { mode: 'walk', geo: { type: 'LineString', coordinates: [[s2.pos[1], s2.pos[0]], [d.pos[1], d.pos[0]]] }, min: mins(s2.d * 1.25, SPEED.walk), label: `도보 → ${d.name}` },
-        ],
-      });
-    }
-    options.forEach((o) => {
-      o.total = o.legs.reduce((a, l) => a + l.min, 0);
-      o.congKm = o.legs.filter((l) => l.mode === 'bike').reduce((a, l) => a + congestedKm(l.geo, band), 0);
+    let bounds = null;
+    plans.forEach((p, i) => {
+      if (p.none || i === tab) return;
+      p.legs.forEach((l) => L.geoJSON(l.geo, { style: { ...LEG_STYLE[l.mode], opacity: 0.25, weight: 4 }, interactive: false }).addTo(g));
     });
-    options.sort((a, b) => a.total - b.total);
-    setPlans(options); setSel(0); draw(options[0]); setLoading(false);
-  };
+    const p = plans[tab];
+    if (p && !p.none) {
+      p.legs.forEach((l) => {
+        if (l.mode !== 'walk') L.geoJSON(l.geo, { style: { color: C.W, weight: 10, opacity: 0.9 } }).addTo(g);
+        const ly = L.geoJSON(l.geo, { style: LEG_STYLE[l.mode] }).addTo(g);
+        bounds = bounds ? bounds.extend(ly.getBounds()) : ly.getBounds();
+        if (l.mode === 'subway') l.stations.forEach((s) => L.circleMarker(s, { radius: 3, color: C.K, weight: 1, fillColor: C.W, fillOpacity: 1 }).addTo(g));
+      });
+      // 환승 지점: 흰 원 + 진한 테두리 ⇄
+      p.legs.slice(0, -1).forEach((l, i) => {
+        const nx = p.legs[i + 1];
+        if (l.mode === nx.mode || (l.mode === 'walk' && nx.mode === 'walk')) return;
+        const c = l.geo.coordinates.at(-1);
+        L.marker([c[1], c[0]], { zIndexOffset: 900, icon: L.divIcon({ className: '', iconSize: [28, 28], iconAnchor: [14, 14], html: '<div class="xfer-pt">⇄</div>' }) }).addTo(g);
+      });
+      L.marker(to.pos, { zIndexOffset: 950, icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [30, 30], iconAnchor: [15, 28] }) }).addTo(g);
+      if (bounds && !guide) map.fitBounds(bounds, { paddingTopLeft: [30, 190], paddingBottomRight: [30, 360] });
+    }
+  }, [plans, tab, mapRef, course]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const pick = (i) => { setSel(i); draw(plans[i]); };
+  // 안내 중: 다음 지점 60m 안에 들어오면 다음 단계로
+  useEffect(() => {
+    if (!guide || !loc.live) return;
+    const st = guide.steps[guide.i];
+    if (st?.to && dist(loc.pos, [st.to[1], st.to[0]]) < 0.06) next();
+  }, [loc.pos]); // eslint-disable-line react-hooks/exhaustive-deps
+  const next = () => setGuide((g) => {
+    if (!g) return g;
+    if (g.i + 1 >= g.steps.length) { setArrived(true); return null; }
+    return { ...g, i: g.i + 1 };
+  });
 
   // ----- 동물 모양 코스 -----
   const showCourse = useCallback((c) => {
     const map = mapRef.current; if (!map) return;
-    setCourse(c); setPlans(null); setDest(null); setRiding(false); setVisited(new Set()); setWon(null);
+    setCourse(c); setPlans(null); setRiding(false); setVisited(new Set()); setWon(null);
     if (layerRef.current) layerRef.current.remove();
     const g = L.layerGroup().addTo(map); layerRef.current = g;
-    L.polyline(c.pts, { color: C.K, weight: 10, opacity: 1, lineJoin: 'round' }).addTo(g);
+    L.polyline(c.pts, { color: C.K, weight: 10, lineJoin: 'round' }).addTo(g);
     const line = L.polyline(c.pts, { color: C.Y, weight: 6, lineJoin: 'round' }).addTo(g);
     c.pts.forEach((p, i) => L.circleMarker(p, { radius: 3, color: C.K, weight: 1.5, fillColor: C.W, fillOpacity: 1 }).bindTooltip(c.names[i] || '', { direction: 'top' }).addTo(g));
     L.marker(c.pts[0], { icon: L.divIcon({ className: '', html: '<div class="start-pin">출발</div>', iconSize: [40, 22], iconAnchor: [20, 30] }) }).addTo(g);
-    map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 150], paddingBottomRight: [30, 430] });
+    map.fitBounds(line.getBounds(), { paddingTopLeft: [30, 120], paddingBottomRight: [30, 330] });
   }, [mapRef]);
-  useEffect(() => {
-    if (initialCourse && mapRef.current) showCourse(COURSES.find((c) => c.id === initialCourse));
-  }, [initialCourse, mapRef, showCourse, mapRef.current]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // 코스 달리는 중: 실시간 위치가 코스의 대여소 지점 60m 안에 들어오면 지나간 것으로 표시
+  useEffect(() => { if (initialCourse && mapRef.current) showCourse(COURSES.find((c) => c.id === initialCourse)); }, [initialCourse, mapRef.current, showCourse]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!riding || !course || !loc.live) return;
-    setVisited((v) => {
-      const n = new Set(v);
-      course.pts.forEach((p, i) => { if (dist(loc.pos, p) < 0.06) n.add(i); });
-      return n;
-    });
+    setVisited((v) => { const n = new Set(v); course.pts.forEach((p, i) => { if (dist(loc.pos, p) < 0.06) n.add(i); }); return n; });
   }, [riding, course, loc.pos, loc.live]);
   useEffect(() => {
-    if (!riding || !course || won) return;
-    if (visited.size >= Math.ceil(course.pts.length * 0.9)) { saveBadge(course.id); setWon(course); setRiding(false); }
+    if (riding && course && !won && visited.size >= Math.ceil(course.pts.length * 0.9)) { saveBadge(course.id); setWon(course); setRiding(false); }
   }, [visited, riding, course, won]);
-  const MODE = { bike: '타슈', subway: '지하철', walk: '도보' };
+
+  const results = q.trim() ? PLACES.filter((p) => p.name.includes(q.trim())).slice(0, 8) : PLACES.slice(0, 8);
+  const choose = (p) => { const v = { name: p.name, pos: p.pos }; if (editing === 'from') setFrom(v); else setTo(v); setEditing(null); setQ(''); };
+  const swap = () => { const f = from, t = to; setTo(f ? f : { name: '현재 위치', pos: loc.pos }); setFrom(t); };
+  const p = plans?.[tab];
+  const steps = p && !p.none ? stepsOf(p) : [];
+  const curStep = guide?.steps[guide.i];
+  const nearRet = arrived && to ? nearest(TASHU, to.pos) : null;
 
   return (
-    <div className="screen">
+    <div className={`screen route ${guide ? 'guiding' : ''}`}>
       <div ref={el} className="map" /><MapFail />
-      <header className="route-head">
-        <button className="back" onClick={back}>←</button>
-        <div><b>최적 경로 길찾기</b><small>출발: 현재 위치 {loc.live ? '(실시간)' : '(대전시청 기준)'}</small></div>
-      </header>
-      <div className="route-band"><BandBar band={band} setBand={setBand} /></div>
-      <div className="sheet">
-        {won && (
-          <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 보관함에서 볼 수 있어요.</small></div></div>
-        )}
-        {course && !won && (() => {
-          const got = loadBadges()[course.id];
-          const pct = Math.round((visited.size / course.pts.length) * 100);
-          return (
-            <div className="course-card">
-              <div className="cc-head"><CourseThumb c={course} size={58} /><div><b>{course.nm}</b><small>{course.area} · 대여소 {course.stops}곳 · 실제 이용 구간 {course.ridden}%</small></div></div>
-              <div className="cc-sum"><span className="big">{Math.round(course.km / 12 * 60)}분</span><span>{course.km}km · 혼잡 도로 0m</span><span className="badge">{got ? '배지 받음' : `완주하면 ${course.badge}`}</span></div>
-              {riding ? (
-                <div className="cc-ride">
-                  <div className="pass-bar"><div style={{ width: `${pct}%` }} /></div>
-                  <small>{loc.live ? `코스 지점 ${visited.size}/${course.pts.length} 지남 · 90% 지나면 완주` : '실시간 위치를 켜야 완주를 확인할 수 있어요'}</small>
-                  <button className="cc-btn ghost" onClick={() => setRiding(false)}>그만 달리기</button>
-                </div>
-              ) : (
-                <button className="cc-btn" onClick={() => { setRiding(true); mapRef.current?.setView(course.pts[0], 16); }}>코스 시작하기</button>
-              )}
-            </div>
-          );
-        })()}
-        {!plans && !course && <div className="route-info"><b>{loading ? '타슈·지하철 연계 경로 찾는 중…' : '어디로 갈까요?'}</b></div>}
-        {plans && plans.map((p, i) => (
-          <button key={p.title} className={`plan ${i === 0 ? 'best' : 'alt'} ${sel === i ? 'on' : ''}`} onClick={() => pick(i)}>
-            <div className="plan-top">
-              {i === 0 && <span className="badge">추천</span>}
-              <span className="plan-title">{p.title}</span>
-              <span className="plan-total">{p.total}분</span>
-            </div>
-            <div className="legs">
-              {p.legs.map((l, k) => (
-                <span key={k} className={`leg ${l.mode}`} style={{ flexGrow: l.min }} title={l.label}>{MODE[l.mode]} {l.min}분</span>
-              ))}
-            </div>
-            {i === 0 && <small className="plan-desc">{p.legs.map((l) => l.label).join(' · ')}{p.legs.some((l) => l.mode === 'subway') ? ' (지하철 시간은 예상치)' : ''}</small>}
-            <small className="plan-cong">{BANDS[band].nm} 기준 · {p.congKm >= 0.05 ? `혼잡 도로 ${p.congKm.toFixed(1)}km 지나요` : '혼잡 도로를 지나지 않아요'}</small>
-          </button>
-        ))}
-        <div className="chips">
-          {DESTINATIONS.map((d) => (
-            <button key={d.name} className={dest?.name === d.name ? 'chip on' : 'chip'} onClick={() => find(d)}>{d.name}</button>
-          ))}
-        </div>
-        <div className="crs-title">오늘은 어떤 경로로 자전거를 타볼까?</div>
-        <div className="crs-row">
-          {COURSES.map((c) => (
-            <button key={c.id} className={course?.id === c.id ? 'crs on' : 'crs'} onClick={() => showCourse(c)}>
-              <CourseThumb c={c} size={64} />
-              <b>{c.nm}</b><small>{c.km}km{loadBadges()[c.id] ? ' · 배지 ✓' : ''}</small>
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function Placeholder({ title, icon, desc, back }) {
-  return (
-    <div className="screen plain">
-      <header className="route-head static"><button className="back" onClick={back}>←</button><b>{title}</b></header>
-      <div className="placeholder">
-        <div className="ph-ico" dangerouslySetInnerHTML={{ __html: icon }} />
-        <p>{desc}</p>
-        <small>이 화면에 들어갈 기능을 알려주시면 채워 넣을게요.</small>
-      </div>
+      {guide ? (
+        <div className={`guide-card g-${curStep.mode}`}>
+          <Icon svg={MODE_ICON[curStep.mode](curStep.mode === 'subway' || curStep.mode === 'bus' ? '#FFFFFF' : '#111111')} size={32} />
+          <div><small>{guide.i + 1}/{guide.steps.length} 단계 · {MODE_NM[curStep.mode]}</small><b>{curStep.text}</b>
+            {guide.steps[guide.i + 1] && guide.steps[guide.i + 1].mode !== curStep.mode && <em>다음: {MODE_NM[guide.steps[guide.i + 1].mode]}(으)로 갈아타기</em>}
+          </div>
+          <button onClick={next}>다음</button>
+        </div>
+      ) : course ? (
+        <header className="route-head"><button className="back" onClick={back}>←</button><div><b>오늘은 어떤 경로로 자전거를 타볼까?</b><small>동물 모양 코스 · 완주하면 배지</small></div></header>
+      ) : (
+        <header className="route-fields">
+          <button className="back" onClick={back} aria-label="뒤로">←</button>
+          <div className="fields">
+            <button className={editing === 'from' ? 'fld on' : 'fld'} onClick={() => setEditing('from')}><i className="dot-from" />{origin.name}</button>
+            <button className={editing === 'to' ? 'fld on' : 'fld'} onClick={() => setEditing('to')}><i className="dot-to" />{to ? to.name : '어디로 갈까요?'}</button>
+          </div>
+          <button className="swap" onClick={swap} aria-label="출발지와 도착지 바꾸기">⇅</button>
+        </header>
+      )}
+      {!guide && !course && !editing && <div className="route-band"><BandBar band={band} setBand={setBand} compact /></div>}
+      {!guide && <div className="route-timer"><RentTimer rent={rent} onReturn={openReturn} /></div>}
+
+      {editing && !guide && (
+        <div className="search-sheet">
+          <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder={editing === 'from' ? '출발지 검색 (역·대여소·명소)' : '도착지 검색 (역·대여소·명소)'} />
+          {editing === 'from' && <button className="res" onClick={() => { setFrom(null); setEditing(null); }}><b>현재 위치</b><small>내 위치에서 출발</small></button>}
+          {results.map((r) => <button key={r.kind + r.name} className="res" onClick={() => choose(r)}><b>{r.name}</b><small>{r.kind}</small></button>)}
+          <p className="note">지도를 눌러서 도착지를 정하거나, 대여소를 눌러 출발지로·목적지로를 고를 수도 있어요.</p>
+          <button className="res close" onClick={() => setEditing(null)}>닫기</button>
+        </div>
+      )}
+
+      {!editing && (
+        <div className="sheet">
+          {won && <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 화면에 모였어요.</small></div></div>}
+          {arrived && (
+            <div className="arrived">
+              <b>{to?.name} 도착!</b>
+              {p && <small>{p.bikeKm > 0 ? `타슈 ${p.bikeKm.toFixed(1)}km · 탄소 ${p.co2.toLocaleString()}g 감축 · ${p.kcal}kcal` : '대중교통으로 도착했어요'}</small>}
+              {nearRet && <small>가까운 반납 대여소: <b>{nearRet.name}</b> ({Math.round(nearRet.d * 1000)}m)</small>}
+              {rent.rental ? <button className="cc-btn" onClick={() => { rent.finish(nearRet); setArrived(false); }}>{nearRet.name}에 반납하기</button> : <button className="cc-btn ghost" onClick={() => setArrived(false)}>확인</button>}
+            </div>
+          )}
+
+          {course && !won && (() => {
+            const got = loadBadges()[course.id];
+            const pct = Math.round((visited.size / course.pts.length) * 100);
+            return (
+              <div className="course-card">
+                <div className="cc-head"><CourseThumb c={course} size={58} /><div><b>{course.nm}</b><small>{course.area} · 대여소 {course.stops}곳 · 실제 이용 구간 {course.ridden}%</small></div></div>
+                <div className="cc-sum"><span className="big">{Math.round(course.km / 12 * 60)}분</span><span>{course.km}km · 혼잡 도로 0m · {Math.round(course.km * KCAL_PER_KM)}kcal · 탄소 {Math.round(course.km * CO2_G_PER_KM)}g 감축</span><span className="badge">{got ? '배지 받음' : `완주하면 ${course.badge}`}</span></div>
+                {riding ? (
+                  <div className="cc-ride">
+                    <div className="pass-bar"><div style={{ width: `${pct}%` }} /></div>
+                    <small>{loc.live ? `코스 지점 ${visited.size}/${course.pts.length} 지남 · 90% 지나면 완주` : '실시간 위치를 켜야 완주를 확인할 수 있어요'}</small>
+                    <button className="cc-btn ghost" onClick={() => setRiding(false)}>그만 달리기</button>
+                  </div>
+                ) : (
+                  <>
+                    <button className="cc-btn" onClick={() => { setRiding(true); if (!rent.rental) openRent(); mapRef.current?.setView(course.pts[0], 16); }}>코스 시작하기</button>
+                    <button className="cc-btn ghost" onClick={() => { setCourse(null); if (layerRef.current) layerRef.current.remove(); }}>일반 길찾기로</button>
+                  </>
+                )}
+              </div>
+            );
+          })()}
+
+          {!course && !arrived && (
+            <>
+              {!to && <div className="route-info"><b>어디로 갈까요?</b><small>위의 도착지를 누르거나 지도를 눌러 주세요.</small></div>}
+              {to && (
+                <div className="rtabs">
+                  {['대중교통+타슈', '대중교통', '타슈'].map((nm, i) => {
+                    const pp = plans?.[i];
+                    return (
+                      <button key={nm} aria-pressed={tab === i} disabled={!pp || pp.none} onClick={() => setTab(i)}>
+                        <span className="rt-name">{nm}{i === 0 && <em>추천</em>}</span>
+                        <b>{loading || !pp ? '…' : pp.none ? '–' : `${pp.min}분`}</b>
+                        <span className="rt-badges">{pp?.fastest && <i>가장 빠름</i>}{pp?.greenest && <i>탄소 최고</i>}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+              {to && p?.none && <div className="route-info"><small>{p.why}</small></div>}
+              {to && p && !p.none && !loading && (
+                <div className="plan-detail">
+                  {p.key === 'tashu' && (
+                    <div className="seg2 small">
+                      {[['avoid', '혼잡 회피'], ['bike', '자전거길 우선'], ['short', '최단 거리']].map(([k, nm]) => <button key={k} aria-pressed={bikeMode === k} onClick={() => setBikeMode(k)}>{nm}</button>)}
+                    </div>
+                  )}
+                  <ModeBar legs={p.legs} />
+                  <div className="pd-sum"><span className="big">{p.min}분</span><span className="arrive">{hhmm(p.arrive)} 도착</span></div>
+                  <div className="pd-meta">
+                    <span>환승 {p.transfers}회</span><span>걷기 {p.walkM}m</span>
+                    <span>{['출근', '퇴근', '평시'][band]} 혼잡 도로 {p.congKm >= 0.05 ? `${p.congKm.toFixed(1)}km` : '없음'}</span>
+                    {p.bikeKm > 0 ? <><span>타슈 {p.bikeKm.toFixed(1)}km</span><span>{p.kcal}kcal</span><span>탄소 {p.co2.toLocaleString()}g 감축</span></> : <span>탄소 감축 0g (타슈 구간 없음)</span>}
+                  </div>
+                  <ol className="steps">{steps.map((s, i) => <li key={i}><Icon svg={MODE_ICON[s.mode]('#111111')} size={18} className={`st-${s.mode}`} />{s.text}</li>)}</ol>
+                  <button className="cc-btn" onClick={() => { setGuide({ steps, i: 0 }); setArrived(false); mapRef.current?.setView(origin.pos, 17); }}>안내 시작</button>
+                  <small className="note">{p.legs.some((l) => l.exact === false) ? '일부 구간은 경로 서버에 연결하지 못해 직선으로 표시했어요. ' : ''}{p.legs.some((l) => l.mode === 'bus') ? '버스 시간은 도로 혼잡도로 추정한 값이에요. ' : ''}{p.legs.some((l) => l.mode === 'subway') ? '지하철은 한 정거장 2분 + 대기 4분으로 계산했어요.' : ''}</small>
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -615,7 +799,7 @@ function loadSettings() {
   catch { return { voice: true, avoid: true, returnAlert: true }; }
 }
 
-function MyInfo({ back }) {
+function MyInfo({ back, rent, openRent, openReturn }) {
   const [set, setSet] = useState(loadSettings);
   const toggle = (k) => setSet((s) => {
     const n = { ...s, [k]: !s[k] };
@@ -631,8 +815,26 @@ function MyInfo({ back }) {
 
   return (
     <div className="screen info">
-      <header className="info-head"><button className="back" onClick={back}>←</button><b>내 정보</b></header>
+      <header className="info-head"><button className="back" onClick={back}>←</button><b>MY</b></header>
       <div className="info-body">
+        <section className="card rent-card">
+          <h3>대여 상태</h3>
+          {rent.rental ? (
+            <>
+              <div className="rent-now"><b>{rent.rental.bike}</b><span className={rent.left <= 300 ? 'warn' : ''}>{rent.left <= 0 ? `무료 시간 ${fmtLeft(rent.left)} 초과` : `무료 ${fmtLeft(rent.left)} 남음`}</span></div>
+              <button className="cc-btn" onClick={openReturn}>가까운 대여소에 반납</button>
+            </>
+          ) : (
+            <>
+              <p className="note">지금 빌린 타슈가 없어요.</p>
+              <button className="cc-btn" onClick={openRent}>타슈 대여하기</button>
+            </>
+          )}
+          {rent.history.length > 0 && rent.history.slice(0, 3).map((h) => (
+            <div className="hist" key={h.start}><span>{h.bike} → {h.station} 반납</span><small>{new Date(h.start).toLocaleDateString('ko-KR', { month: 'numeric', day: 'numeric' })} · {Math.max(1, Math.round((h.end - h.start) / 60000))}분</small></div>
+          ))}
+        </section>
+
         <section className="card icon-card">
           <div className="app-icon" dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} />
           <div>
@@ -683,22 +885,29 @@ function MyInfo({ back }) {
   );
 }
 
+
 export default function App() {
   const [screen, setScreen] = useState('splash');
   const loc = useLocation();
-  const home = useCallback(() => setScreen('home'), []);
   const [band, setBand] = useState(defaultBand);
   const [courseId, setCourseId] = useState(null);
-  const go = useCallback((sc) => { setCourseId(null); setScreen(sc); }, []);
-  const openCourse = useCallback((id) => { setCourseId(id); setScreen('route'); }, []);
+  const [trip, setTrip] = useState(null);
+  const [modal, setModal] = useState(null); // 'rent' | 'return'
+  const rent = useRental();
+  const home = useCallback(() => setScreen('home'), []);
+  const go = useCallback((sc) => { setCourseId(null); setTrip(null); setScreen(sc); }, []);
+  const openCourse = useCallback((id) => { setCourseId(id); setTrip(null); setScreen('route'); }, []);
+  const pick = useCallback((act, place) => { setCourseId(null); setTrip(act === 'from' ? { from: place } : { to: place }); setScreen('route'); }, []);
+  const startRent = useCallback((bike) => { rent.start(bike); setModal(null); }, [rent]);
   return (
     <div className="phone">
       {screen === 'splash' && <Splash onDone={home} />}
-      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} />}
-      {screen === 'route' && <RouteScreen loc={loc} back={home} band={band} setBand={setBand} initialCourse={courseId} />}
+      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} pick={pick} />}
+      {screen === 'route' && <RouteScreen key={`${courseId}-${trip?.from?.name}-${trip?.to?.name}`} loc={loc} back={home} band={band} setBand={setBand} initialCourse={courseId} trip={trip} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} />}
       {screen === 'badges' && <BadgeScreen back={home} openCourse={openCourse} />}
-      {screen === 'left' && <Placeholder title="대여소" icon={bikeSvg('#111111')} desc="왼쪽 아래 버튼 화면 (예: 주변 타슈 대여소)" back={home} />}
-      {screen === 'right' && <MyInfo back={home} />}
+      {screen === 'my' && <MyInfo back={home} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} />}
+      {modal === 'rent' && <RentModal onClose={() => setModal(null)} onStart={startRent} />}
+      {modal === 'return' && rent.rental && <ReturnModal loc={loc} rent={rent} onClose={() => setModal(null)} />}
     </div>
   );
 }

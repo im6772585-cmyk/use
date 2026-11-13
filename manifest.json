@@ -1,6 +1,6 @@
 {
-  "name": "타슈 내비",
-  "short_name": "타슈 내비",
+  "name": "올라타슈 내려타슈",
+  "short_name": "올라타슈",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#FFD200",
