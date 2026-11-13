@@ -3,7 +3,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import '@maplibre/maplibre-gl-leaflet';
 import { mapStyle, C } from './mapStyle.js';
-import { bikeSvg, myLocationHtml } from './rider.js';
+import { bikeSvg, myLocationHtml, trainSvg, personSvg } from './rider.js';
 
 const DAEJEON_CENTER = [36.3504, 127.3845]; // 대전시청
 const DAEJEON_BBOX = '36.20,127.25,36.50,127.50';
@@ -89,7 +89,7 @@ function WeatherChip({ pos }) {
   const warn = w.weather_code >= 51 ? '라이딩 주의' : w.wind_speed_10m > 30 ? '강풍' : null;
   return (
     <div className="weather">
-      <span>{emoji}</span><b>{Math.round(w.temperature_2m)}°</b><span className="w-l">{label}</span>
+      <b>{Math.round(w.temperature_2m)}°</b><span className="w-l">{label}</span>
       {warn && <span className="w-warn">{warn}</span>}
     </div>
   );
@@ -139,7 +139,7 @@ function useTransit(center) {
 // 크기 = 중요도: 지하철 > 타슈 대여소 > 버스정류장
 const icons = {
   subway: (name) => L.divIcon({ className: '', iconSize: [34, 34], iconAnchor: [17, 17],
-    html: `<div class="mk mk-subway">🚇</div><div class="lbl lbl-subway">${name}</div>` }),
+    html: `<div class="mk mk-subway">${trainSvg()}</div><div class="lbl lbl-subway">${name}</div>` }),
   tashu: (name) => L.divIcon({ className: '', iconSize: [26, 26], iconAnchor: [13, 13],
     html: `<div class="mk mk-tashu">${bikeSvg('#111111')}</div><div class="lbl lbl-tashu">${name}</div>` }),
   bus: (name) => L.divIcon({ className: '', iconSize: [12, 12], iconAnchor: [6, 6],
@@ -239,16 +239,16 @@ function Home({ loc, go }) {
       <div ref={el} className="map" /><MapFail />
       <WeatherChip pos={loc.pos} />
       {loc.error && <div className="toast">{loc.error}</div>}
-      <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">◎</button>
+      <button className="recenter" onClick={() => { setFollow(true); mapRef.current?.setView(loc.pos, 16); }} aria-label="내 위치로">⊙</button>
 
       {/* 연계 카드: 지하철(가장 크게) > 타슈 > 버스 */}
       <div className="link-card">
         {(
           <>
             <button className="lc-main" onClick={() => focus(sub)}>
-              <span className="lc-ico subway">🚇</span>
+              <span className="lc-ico subway" dangerouslySetInnerHTML={{ __html: trainSvg() }} />
               <div><small>가까운 지하철</small><b>{sub ? sub.name : '없음'}</b></div>
-              {sub && <div className="lc-time"><b>🚲 {mins(sub.d, SPEED.bike)}분</b><small>{sub.d.toFixed(1)}km</small></div>}
+              {sub && <div className="lc-time"><b>타슈 {mins(sub.d, SPEED.bike)}분</b><small>{sub.d.toFixed(1)}km</small></div>}
             </button>
             <div className="lc-row">
               <button className="lc-sub" onClick={() => focus(tashu)}>
@@ -267,7 +267,7 @@ function Home({ loc, go }) {
       <nav className="bottom-bar">
         <button className="side-btn" onClick={() => go('left')}><span dangerouslySetInnerHTML={{ __html: bikeSvg('#111111') }} /><small>대여소</small></button>
         <button className="nav-btn" onClick={() => go('route')} aria-label="최적 경로 길찾기"><span>➤</span><small>길찾기</small></button>
-        <button className="side-btn" onClick={() => go('right')}><span>👤</span><small>내 정보</small></button>
+        <button className="side-btn" onClick={() => go('right')}><span dangerouslySetInnerHTML={{ __html: personSvg() }} /><small>내 정보</small></button>
       </nav>
     </div>
   );
@@ -308,7 +308,7 @@ function RouteScreen({ loc, back }) {
         : { color: C.Y, weight: 8 };
       const line = L.geoJSON(leg.geo, { style }).addTo(g); all.push(line);
     }
-    L.marker(plan.dest, { icon: L.divIcon({ className: '', html: '<div class="dest-pin">🏁</div>', iconSize: [32, 32], iconAnchor: [16, 30] }) }).addTo(g);
+    L.marker(plan.dest, { icon: L.divIcon({ className: '', html: '<div class="dest-pin"></div>', iconSize: [32, 32], iconAnchor: [16, 30] }) }).addTo(g);
     map.fitBounds(L.featureGroup(all).getBounds(), { padding: [60, 60], paddingBottomRight: [40, 300] });
   }, [mapRef]);
 
@@ -340,7 +340,7 @@ function RouteScreen({ loc, back }) {
   };
 
   const pick = (i) => { setSel(i); draw(plans[i]); };
-  const MODE = { bike: '🚲', subway: '🚇', walk: '🚶' };
+  const MODE = { bike: '타슈', subway: '지하철', walk: '도보' };
 
   return (
     <div className="screen">
@@ -399,7 +399,7 @@ export default function App() {
       {screen === 'home' && <Home loc={loc} go={setScreen} />}
       {screen === 'route' && <RouteScreen loc={loc} back={home} />}
       {screen === 'left' && <Placeholder title="대여소" icon={bikeSvg('#111111')} desc="왼쪽 아래 버튼 화면 (예: 주변 타슈 대여소)" back={home} />}
-      {screen === 'right' && <Placeholder title="내 정보" icon="<span style='font-size:56px'>👤</span>" desc="오른쪽 아래 버튼 화면 (예: 이용 기록·설정)" back={home} />}
+      {screen === 'right' && <Placeholder title="내 정보" icon={personSvg()} desc="오른쪽 아래 버튼 화면 (예: 이용 기록·설정)" back={home} />}
     </div>
   );
 }

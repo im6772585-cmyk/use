@@ -12,3 +12,6 @@ export const myLocationHtml = (size = 44) => `
   <div class="me-pulse"></div>
   <div class="me-dot">${bikeSvg('#111111')}</div>
 </div>`;
+
+export const trainSvg = (c = '#FFD200') => `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect x="5" y="3" width="14" height="14" rx="3" fill="none" stroke="${c}" stroke-width="2.2"/><path d="M5 10 H19" stroke="${c}" stroke-width="2.2"/><circle cx="9" cy="13.5" r="1.3" fill="${c}"/><circle cx="15" cy="13.5" r="1.3" fill="${c}"/><path d="M8 17 L6 21 M16 17 L18 21" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/></svg>`;
+export const personSvg = (c = '#111111') => `<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><circle cx="12" cy="8" r="4" fill="none" stroke="${c}" stroke-width="2.2"/><path d="M4 21 C4 16 8 14 12 14 S20 16 20 21" fill="none" stroke="${c}" stroke-width="2.2" stroke-linecap="round"/></svg>`;
