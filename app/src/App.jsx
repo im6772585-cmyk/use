@@ -326,7 +326,8 @@ function useStationLayers(mapRef, bus, onPick) {
     // 버스정류장: 확대했을 때만 지름 14px
     const busG = L.layerGroup();
     bus.forEach((b) => L.marker(b.pos, { icon: L.divIcon({ className: '', iconSize: [14, 14], iconAnchor: [7, 7], html: '<div class="mk mk-bus"></div>' }) }).bindTooltip(b.name, { direction: 'top' }).bindPopup(busPopup(b), { maxWidth: 260, offset: [0, -4] }).addTo(busG));
-    const zoomCheck = () => { if (map.getZoom() >= 16) busG.addTo(g); else busG.remove(); map.getContainer().classList.toggle('z-sub-lbl', map.getZoom() >= 14); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
+    const zoomCheck = () => { busG.remove(); // 정류장은 '정류장' 버튼으로 고른 것만 표시
+      map.getContainer().classList.toggle('z-sub-lbl', map.getZoom() >= 14); map.getContainer().classList.toggle('z-bus-lbl', map.getZoom() >= 17); };
     zoomCheck(); map.on('zoomend', zoomCheck);
     const onPop = (e) => {
       e.popup.getElement()?.querySelectorAll('button[data-act]').forEach((btn) => btn.addEventListener('click', () => {
@@ -633,8 +634,8 @@ function stepsOf(p) {
       s.push({ mode: 'subway', title: `${l.to.name} 하차`, sub: `${l.stops}정거장 · ${l.min - l.wait}분`, to: [l.to.pos[1], l.to.pos[0]] });
     }
     if (l.mode === 'bus') {
-      const off = (l.label.match(/→ (.+?) 하차/) || [])[1];
-      s.push({ mode: 'bus', title: `시내버스 ${l.min - l.wait}분`, sub: `${off ? `${off} 하차 · ` : ''}정류장 대기 약 ${l.wait}분 · 도로 혼잡도로 추정`, to: l.geo.coordinates.at(-1) });
+      s.push({ mode: 'bus', title: `${l.route.replace(/번$/, '')}번 버스 · ${l.from.name} 승차`, sub: `정류장 번호 ${l.from.no} · 대기 약 ${l.wait}분`, to: [l.from.pos[1], l.from.pos[0]] });
+      s.push({ mode: 'bus', title: `${l.to.name} 하차`, sub: `${l.stops}정거장 · ${l.min - l.wait}분 · ${l.km.toFixed(1)}km`, to: [l.to.pos[1], l.to.pos[0]] });
     }
     if (l.mode === 'bike') {
       if (l.rent) s.push({ mode: 'bike', title: '타슈 대여', sub: l.rent.name, to: [l.rent.pos[1], l.rent.pos[0]] });
@@ -656,6 +657,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [q, setQ] = useState('');
   const [bikeMode, setBikeMode] = useState('avoid');
   const [plans, setPlans] = useState(null);
+  const [vsel, setVsel] = useState({}); // 대중교통·대중교통+타슈 안에서 고른 방법 (지하철/버스)
+  const shown = useMemo(() => plans && plans.map((pl) => (pl.variants ? pl.variants[vsel[pl.key] ?? pl.vdef] : pl)), [plans, vsel]);
   const [tab, setTab] = useState(0);
   const [loading, setLoading] = useState(false);
   const [planErr, setPlanErr] = useState(false);
@@ -705,7 +708,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
     planAll(origin.pos, to.pos, band, bikeMode).catch(() => null).then((ps) => {
       if (!alive) return;
       if (!ps) { setPlanErr(true); setLoading(false); return; }
-      setPlans(ps);
+      setPlans(ps); setVsel({});
       const tripKey = `${originKey}|${to.pos.join()}`;
       const fastest = ps.findIndex((x) => x.fastest);
       if (tripKeyRef.current !== tripKey) userPickedRef.current = false;
@@ -722,11 +725,11 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
     if (layerRef.current) layerRef.current.remove();
     const g = L.layerGroup().addTo(map); layerRef.current = g;
     let bounds = null;
-    plans.forEach((p, i) => {
+    shown.forEach((p, i) => {
       if (p.none || i === tab) return;
       p.legs.forEach((l) => L.geoJSON(l.geo, { style: { ...LEG_STYLE[l.mode], opacity: 0.25, weight: 4 }, interactive: false }).addTo(g));
     });
-    const p = plans[tab];
+    const p = shown[tab];
     if (p && !p.none) {
       p.legs.forEach((l) => {
         if (l.mode !== 'walk') L.geoJSON(l.geo, { style: { color: C.W, weight: 10, opacity: 0.9 } }).addTo(g);
@@ -758,7 +761,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       setTimeout(declutter, 0);
       if (bounds && !guide) map.fitBounds(bounds, { paddingTopLeft: [30, 190], paddingBottomRight: [30, 360] });
     }
-  }, [plans, tab, mapRef, course]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shown, tab, mapRef, course]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // 안내 중: 다음 지점 60m 안에 들어오면 다음 단계로
   useEffect(() => {
@@ -833,7 +836,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const results = q.trim() ? PLACES.filter((p) => p.name.includes(q.trim())).slice(0, 8) : PLACES.slice(0, 8);
   const choose = (p) => { const v = { name: p.name, pos: p.pos }; if (editing === 'from') setFrom(v); else setTo(v); setEditing(null); setQ(''); };
   const swap = () => { const f = from, t = to; setTo(f ? f : { name: '현재 위치', pos: loc.pos }); setFrom(t); };
-  const p = plans?.[tab];
+  const p = shown?.[tab];
   const steps = p && !p.none ? stepsOf(p) : [];
   const curStep = guide?.steps[guide.i];
   const nearRet = arrived && to ? nearest(TASHU, to.pos) : null;
@@ -946,12 +949,12 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
               {to && (
                 <div className="rtabs">
                   {['대중교통+타슈', '대중교통', '타슈'].map((nm, i) => {
-                    const pp = plans?.[i];
+                    const pp = shown?.[i], top = plans?.[i];
                     return (
                       <button key={nm} aria-pressed={tab === i} disabled={!pp || pp.none} onClick={() => { userPickedRef.current = true; setTab(i); }}>
                         <span className="rt-name">{nm}</span>
                         <b>{loading || !pp ? '…' : pp.none ? '–' : `${pp.min}분`}</b>
-                        <span className="rt-badges">{pp?.fastest && <i className="rec">추천 · 가장 빠름</i>}{pp?.greenest && !pp?.fastest && <i>탄소 최고</i>}</span>
+                        <span className="rt-badges">{top?.fastest && <i className="rec">추천 · 가장 빠름</i>}{top?.greenest && !top?.fastest && <i>탄소 최고</i>}</span>
                       </button>
                     );
                   })}
@@ -965,6 +968,15 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                   {p.key === 'tashu' && (
                     <div className="seg2 small">
                       {[['avoid', '혼잡 회피'], ['bike', '자전거길 우선'], ['short', '최단 거리']].map(([k, nm]) => <button key={k} aria-pressed={bikeMode === k} onClick={() => setBikeMode(k)}>{nm}</button>)}
+                    </div>
+                  )}
+                  {plans[tab]?.variants && (
+                    <div className="seg2 small vseg">
+                      {['지하철', '버스', '지하철+타슈', '버스+타슈'].filter((nm) => (tab === 1 ? !nm.includes('+') : nm.includes('+'))).map((nm) => {
+                        const vi = plans[tab].variants.findIndex((v) => v.vname === nm);
+                        const v = plans[tab].variants[vi];
+                        return <button key={nm} disabled={vi < 0} aria-pressed={p.vname === nm} onClick={() => setVsel((o) => ({ ...o, [plans[tab].key]: vi }))}>{nm}{v ? ` ${v.min}분` : ' 없음'}</button>;
+                      })}
                     </div>
                   )}
                   <ModeBar legs={p.legs} />

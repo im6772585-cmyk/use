@@ -2,6 +2,8 @@
 import L from 'leaflet';
 import { STATIONS } from './data.js';
 import { ROAD_LV } from './congestion.js';
+import { BUS } from './busstops.js';
+import { BUS_ROUTES } from './busroutes.js';
 
 export const dist = (a, b) => L.latLng(a).distanceTo(L.latLng(b)) / 1000; // km
 const mins = (km, kmh) => Math.max(1, Math.round((km / kmh) * 60));
@@ -191,70 +193,138 @@ async function tashuTrip(a, b, band, mode) {
   return legs;
 }
 
+// ---- 시내버스: 제공받은 노선별 운행 경로(124개 노선)와 정류장으로 계산
+const BUS_KMH = [15, 14, 19];   // 시간대별 버스 평균 운행속도 (정차 포함, 출근·퇴근·평시)
+const BUS_WAIT = [7, 7, 8];     // 평균 대기 (배차 간격의 절반 정도)
+function decode5(str) {
+  let i = 0, lat = 0, lon = 0; const out = [];
+  while (i < str.length) {
+    for (const k of [0, 1]) {
+      let sh = 0, res = 0, b;
+      do { b = str.charCodeAt(i++) - 63; res |= (b & 0x1f) << sh; sh += 5; } while (b >= 0x20);
+      const d = res & 1 ? ~(res >> 1) : res >> 1;
+      if (k === 0) lat += d; else lon += d;
+    }
+    out.push([lat / 1e5, lon / 1e5]);
+  }
+  return out;
+}
+let ROUTES = null;
+function routes() {
+  if (ROUTES) return ROUTES;
+  ROUTES = BUS_ROUTES.map(([name, enc, st]) => {
+    const pts = decode5(enc); const cum = [0];
+    for (let i = 1; i < pts.length; i++) cum.push(cum[i - 1] + dist(pts[i - 1], pts[i]));
+    const stops = []; for (let i = 0; i < st.length; i += 2) stops.push({ b: BUS[st[i]], km: st[i + 1] / 1000 });
+    return { name: name.replace(/\(.*$/, ''), full: name, pts, cum, stops };
+  });
+  return ROUTES;
+}
+// 노선 경로에서 km1~km2 구간 잘라내기
+function sliceRoute(r, k1, k2) {
+  const out = [];
+  const at = (k) => { let i = r.cum.findIndex((c) => c >= k); if (i <= 0) return r.pts[Math.max(0, i)]; const f = (k - r.cum[i - 1]) / ((r.cum[i] - r.cum[i - 1]) || 1); return [r.pts[i - 1][0] + f * (r.pts[i][0] - r.pts[i - 1][0]), r.pts[i - 1][1] + f * (r.pts[i][1] - r.pts[i - 1][1])]; };
+  out.push(at(k1));
+  r.pts.forEach((p, i) => { if (r.cum[i] > k1 && r.cum[i] < k2) out.push(p); });
+  out.push(at(k2));
+  return { type: 'LineString', coordinates: out.map((q) => [q[1], q[0]]) };
+}
+const nearStops = (p, km) => BUS.filter((s) => Math.abs(s.pos[0] - p[0]) < km / 111 && Math.abs(s.pos[1] - p[1]) < km / 89).map((s) => ({ s, d: dist(p, s.pos) })).filter((x) => x.d <= km);
+const walkMin = (km) => (km * 1.3 / WALK) * 60;
+// 한 노선으로 가는 버스 후보 (출발 쪽 정류장 → 도착 쪽 정류장, 같은 노선에서 순서가 맞는 것만)
+function busCandidates(fromP, toList, band, walkKm = 0.6) {
+  const O = new Map(nearStops(fromP, walkKm).map((x) => [x.s.id, x.d]));
+  const out = [];
+  for (const r of routes()) {
+    for (const o of r.stops) {
+      const wo = O.get(o.b.id); if (wo == null) continue;
+      for (const d of r.stops) {
+        if (d.km <= o.km + 0.2) continue;
+        const ride = d.km - o.km;
+        if (ride > 25) continue;
+        const rideMin = (ride / BUS_KMH[band]) * 60;
+        for (const t of toList(d)) out.push({ r, o, d, wo, ride, rideMin, est: walkMin(wo) + BUS_WAIT[band] + rideMin + t.cost, tail: t });
+      }
+    }
+  }
+  return out.sort((x, y) => x.est - y.est);
+}
+function busLegOf(c, band) {
+  const stops = c.r.stops.filter((x) => x.km >= c.o.km && x.km <= c.d.km).length - 1;
+  return { mode: 'bus', geo: sliceRoute(c.r, c.o.km, c.d.km), km: c.ride, min: Math.round(c.rideMin) + BUS_WAIT[band], wait: BUS_WAIT[band], route: c.r.name, stops, from: c.o.b, to: c.d.b, exact: true,
+    label: `${c.r.name} 버스 · ${c.o.b.name} 승차 → ${c.d.b.name} 하차 (${stops}정거장)` };
+}
+
 export async function planAll(a, b, band, bikeMode) {
   const s1 = nearest(SUBWAY, a), s2 = nearest(SUBWAY, b);
   const subwayOk = s1.name !== s2.name && Math.abs(s1.idx - s2.idx) >= 1;
   const t1 = subwayOk ? TRANSFER[s1.idx].list[0] : null, t2 = subwayOk ? TRANSFER[s2.idx].list[0] : null;
-  const usePre = !!t1 && s1.d > 0.15, usePost = !!t2 && s2.d > 0.15; // 역이 바로 앞(150m 안)일 때만 타슈 생략
+  const usePre = !!t1 && s1.d > 0.15, usePost = !!t2 && s2.d > 0.15;
   const sumMin = (legs) => legs.reduce((x, l) => x + l.min, 0);
+  const direct = dist(a, b);
 
-  // 서로 상관없는 경로들을 한꺼번에 계산
-  const [tashuLegs, roadRes, pre, post] = await Promise.all([
+  // 버스 후보 (노선 자료로 바로 계산 — 서버 필요 없음)
+  const D = new Map(nearStops(b, 0.6).map((x) => [x.s.id, x.d]));
+  const busOnly = direct > 0.8 ? busCandidates(a, (d) => (D.has(d.b.id) ? [{ cost: walkMin(D.get(d.b.id)) }] : []), band)[0] : null;
+  // 버스 → 내린 정류장 근처 대여소에서 타슈로 목적지까지
+  const busThenBike = direct > 2 ? busCandidates(a, (d) => {
+    const left = dist(d.b.pos, b);
+    if (left < 0.6 || left > 4 || left > direct * 0.8) return [];
+    return [{ cost: walkMin(0.15) + 2 + (left * 1.3 / 13) * 60 + walkMin(0.15) }];
+  }, band)[0] : null;
+  // 타슈로 출발 정류장까지 → 버스로 목적지 근처까지
+  let bikeThenBus = null;
+  if (direct > 2) {
+    const firsts = [];
+    for (const r of routes()) for (const d of r.stops) {
+      const wd = D.get(d.b.id); if (wd == null) continue;
+      for (const o of r.stops) {
+        if (o.km >= d.km - 0.2) break;
+        const lead = dist(a, o.b.pos);
+        if (lead < 0.6 || lead > 4 || lead > direct * 0.8) continue;
+        const rideMin = ((d.km - o.km) / BUS_KMH[band]) * 60;
+        firsts.push({ r, o, d, ride: d.km - o.km, rideMin, wd, est: walkMin(0.15) + 2 + (lead * 1.3 / 13) * 60 + BUS_WAIT[band] + rideMin + walkMin(wd) });
+      }
+    }
+    bikeThenBus = firsts.sort((x, y) => x.est - y.est)[0] || null;
+  }
+
+  const [tashuLegs, pre, post, bus1, bus2, bus3] = await Promise.all([
     tashuTrip(a, b, band, bikeMode),
-    osrm('car', a, b),
     usePre ? tashuTrip(a, t1.pos, band, bikeMode) : null,
     usePost ? tashuTrip(t2.pos, b, band, bikeMode) : null,
+    busOnly ? Promise.all([walkLeg(a, busOnly.o.b.pos, `${busOnly.o.b.name} 정류장까지 걷기`), busLegOf(busOnly, band), walkLeg(busOnly.d.b.pos, b, '목적지까지 걷기')]) : null,
+    busThenBike ? Promise.all([walkLeg(a, busThenBike.o.b.pos, `${busThenBike.o.b.name} 정류장까지 걷기`), busLegOf(busThenBike, band), tashuTrip(busThenBike.d.b.pos, b, band, bikeMode)]).then(([w, bl, t]) => [w, bl, ...t]) : null,
+    bikeThenBus ? Promise.all([tashuTrip(a, bikeThenBus.o.b.pos, band, bikeMode), busLegOf(bikeThenBus, band), walkLeg(bikeThenBus.d.b.pos, b, '목적지까지 걷기')]).then(([t, bl, w]) => { const last = t[t.length - 1]; if (last.mode === 'walk') last.label = `${bikeThenBus.o.b.name} 정류장까지 걷기`; return [...t, bl, w]; }) : null,
   ]);
 
   // ③ 타슈
   const tashu = finish({ key: 'tashu', title: '타슈', legs: tashuLegs }, band);
 
-  // ② 대중교통: 지하철(걸어서 역까지) 또는 시내버스 중 빠른 것
-  const road = roadRes[0];
-  const ra = analyze(road, band);
-  const wait = band < 2 ? 12 : 8;
-  const busLeg = (geo, km, min, label) => ({ mode: 'bus', geo, km, min: Math.round(min) + wait, wait, congKm: ra.congKm * (km / (ra.km || 1)), exact: road.exact, label });
-  const transitOpts = [];
-  if (subwayOk) transitOpts.push(await Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, b, '목적지까지 걷기')]));
-  transitOpts.push([
-    { mode: 'walk', geo: line(a, a), km: 0.3, min: 4, label: '가까운 버스정류장까지 걷기 (약 300m)' },
-    busLeg(road.geo, ra.km, ra.busMin, `시내버스 약 ${Math.round(ra.busMin)}분 (대기 ${wait}분 별도, 도로 혼잡도로 추정)`),
-    { mode: 'walk', geo: line(b, b), km: 0.3, min: 4, label: '정류장에서 목적지까지 걷기 (약 300m)' },
-  ]);
-  const transit = finish({ key: 'transit', title: '대중교통', legs: transitOpts.sort((x, y) => sumMin(x) - sumMin(y))[0] }, band);
+  // 여러 방법 중 하나를 골라 볼 수 있게 묶음 (기본은 가장 빠른 것)
+  const group = (key, title, opts, why) => {
+    const vs = opts.filter((o) => o.legs).map((o) => finish({ key, title, vname: o.vname, legs: o.legs }, band));
+    if (!vs.length) return { key, title, none: true, why };
+    const vdef = vs.reduce((bi, v, i) => (v.min < vs[bi].min ? i : bi), 0);
+    return { ...vs[vdef], variants: vs, vdef };
+  };
 
-  // ① 대중교통 + 타슈 — 항상 예측해서 가장 빠른 조합을 보여 줌
-  const cand = [];
-  if (pre) { // 타슈로 역까지 → 지하철
+  // ② 대중교통: 지하철 / 버스
+  const subwayLegs = subwayOk ? await Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, b, '목적지까지 걷기')]) : null;
+  const transit = group('transit', '대중교통', [{ vname: '지하철', legs: subwayLegs }, { vname: '버스', legs: bus1 }],
+    '걸어갈 만한 거리 안에 바로 가는 지하철·버스가 없어요.');
+
+  // ① 대중교통 + 타슈: 지하철+타슈 / 버스+타슈
+  const sub = [];
+  if (pre) {
     const bk = pre.find((l) => l.mode === 'bike'); bk.label = `${bk.rent.name}에서 대여 → ${t1.name}(${s1.name} 환승 대여소)에 반납`;
-    cand.push(await Promise.all([...pre.filter((l) => l.mode === 'bike' || l.label.includes('대여소까지')), walkLeg(t1.pos, s1.pos, `${s1.name} 개찰구까지`), subwayLeg(s1, s2), walkLeg(s2.pos, b, '목적지까지 걷기')]));
+    sub.push(await Promise.all([...pre.filter((l) => l.mode === 'bike' || l.label.includes('대여소까지')), walkLeg(t1.pos, s1.pos, `${s1.name} 개찰구까지`), subwayLeg(s1, s2), walkLeg(s2.pos, b, '목적지까지 걷기')]));
   }
-  if (post) { // 지하철 → 환승 대여소에서 타슈
-    cand.push(await Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, t2.pos, `${t2.name} 환승 대여소까지`), ...post.filter((l) => !l.label.includes('대여소까지'))]));
-  }
-  if (pre && post) { // 타슈 → 지하철 → 타슈
-    cand.push(await Promise.all([...cand[0].slice(0, -1), walkLeg(s2.pos, t2.pos, `${t2.name} 환승 대여소까지`), ...post.filter((l) => !l.label.includes('대여소까지'))]));
-  }
-  // 버스로 가다가 목적지 약 1.5km 앞 대여소에서 타슈로 갈아타기
-  if (road.exact && ra.km > 2) {
-    const pts = road.geo.coordinates.map(([lon, lat]) => [lat, lon]);
-    const target = Math.max(0.8, ra.km - Math.min(1.5, ra.km * 0.4));
-    let acc = 0, cut = pts.length - 1;
-    for (let i = 1; i < pts.length; i++) { acc += dist(pts[i - 1], pts[i]); if (acc >= target) { cut = i; break; } }
-    const split = pts[cut];
-    const xfer = bestTashuNear(split, 0.4);
-    const after = await tashuTrip(xfer.pos, b, band, bikeMode);
-    const frac = acc / (ra.km || 1);
-    cand.push([
-      { mode: 'walk', geo: line(a, a), km: 0.3, min: 4, label: '가까운 버스정류장까지 걷기 (약 300m)' },
-      busLeg({ type: 'LineString', coordinates: road.geo.coordinates.slice(0, cut + 1) }, acc, ra.busMin * frac, `시내버스 약 ${Math.round(ra.busMin * frac)}분 → ${xfer.name} 부근 하차 (도로 혼잡도로 추정)`),
-      await walkLeg(split, xfer.pos, `${xfer.name} 대여소까지`),
-      ...after.filter((l) => !l.label.includes('대여소까지')),
-    ]);
-  }
-  const best = cand.sort((x, y) => sumMin(x) - sumMin(y))[0];
-  const combo = best ? finish({ key: 'combo', title: '대중교통+타슈', legs: best }, band)
-    : { key: 'combo', title: '대중교통+타슈', none: true, why: '두 곳이 너무 가까워서 대중교통으로 갈아탈 구간이 없어요. 타슈만 타는 게 가장 좋아요.' };
+  if (post) sub.push(await Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, t2.pos, `${t2.name} 환승 대여소까지`), ...post.filter((l) => !l.label.includes('대여소까지'))]));
+  if (pre && post) sub.push(await Promise.all([...sub[0].slice(0, -1), walkLeg(s2.pos, t2.pos, `${t2.name} 환승 대여소까지`), ...post.filter((l) => !l.label.includes('대여소까지'))]));
+  const bestOf = (arr) => arr.filter(Boolean).sort((x, y) => sumMin(x) - sumMin(y))[0] || null;
+  const combo = group('combo', '대중교통+타슈', [{ vname: '지하철+타슈', legs: bestOf(sub) }, { vname: '버스+타슈', legs: bestOf([bus2, bus3]) }],
+    '두 곳이 가까워서 대중교통으로 갈아탈 구간이 없어요. 타슈만 타는 게 가장 좋아요.');
 
   const plans = [combo, transit, tashu];
   const real = plans.filter((p) => !p.none);
