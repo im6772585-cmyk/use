@@ -49,6 +49,7 @@ function analyze(r, band) {
     .map((st) => ({ l: st.km, lv: ROAD_LV[st.name]?.[band] || 0, bike: /자전거|자전거도로|천변/.test(st.name) }));
   const km = segs.reduce((a, s) => a + s.l, 0);
   return {
+    segs,
     km,
     congKm: segs.filter((s) => s.lv >= 2).reduce((a, s) => a + s.l, 0),
     bikewayKm: segs.filter((s) => s.bike).reduce((a, s) => a + s.l, 0),
@@ -82,13 +83,13 @@ function decode6(str) {
 // 1순위 Valhalla (오르막·산길 회피 설정 가능), 2순위 OSRM
 const VH = { bike: 'bicycle', foot: 'pedestrian', car: 'auto' };
 const VH_OPT = { bicycle: { bicycle_type: 'City', use_hills: 0.05, use_roads: 0.4, avoid_bad_surfaces: 0.9 }, pedestrian: { use_hills: 0.1 }, auto: {} };
-async function valhalla(profile, a, b, alts) {
+async function valhalla(profile, a, b, alts, vopt) {
   const c = VH[profile];
-  const body = { locations: [{ lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }], costing: c, costing_options: { [c]: VH_OPT[c] }, units: 'kilometers', ...(alts ? { alternates: 2 } : {}) };
+  const body = { locations: [{ lat: a[0], lon: a[1] }, { lat: b[0], lon: b[1] }], costing: c, costing_options: { [c]: { ...VH_OPT[c], ...(vopt || {}) } }, units: 'kilometers', ...(alts ? { alternates: 2 } : {}) };
   const r = await fetch('https://valhalla1.openstreetmap.de/route?json=' + encodeURIComponent(JSON.stringify(body)), { signal: AbortSignal.timeout(9000) });
   const j = await r.json();
   if (!j.trip) throw new Error('no route');
-  const conv = (t) => ({ geo: { type: 'LineString', coordinates: decode6(t.legs[0].shape) }, exact: true, steps: t.legs[0].maneuvers.map((m) => ({ name: (m.street_names || [])[0] || '', km: m.length })) });
+  const conv = (t) => ({ geo: { type: 'LineString', coordinates: decode6(t.legs[0].shape) }, exact: true, vh: true, steps: t.legs[0].maneuvers.map((m) => ({ name: (m.street_names || [])[0] || '', km: m.length })) });
   return [j.trip, ...(j.alternates || []).map((x) => x.trip)].map(conv);
 }
 async function osrmRaw(profile, a, b, alts) {
@@ -97,14 +98,14 @@ async function osrmRaw(profile, a, b, alts) {
   if (!j.routes?.length) throw new Error('no route');
   return j.routes.map((x) => ({ geo: x.geometry, exact: true, steps: x.legs.flatMap((lg) => lg.steps.map((st) => ({ name: st.name || '', km: st.distance / 1000 }))) }));
 }
-function osrm(profile, a, b, alts = false) {
-  const k = `${profile}|${a[0].toFixed(5)},${a[1].toFixed(5)}|${b[0].toFixed(5)},${b[1].toFixed(5)}|${alts}`;
+function osrm(profile, a, b, alts = false, vopt = null) {
+  const k = `${profile}|${a[0].toFixed(5)},${a[1].toFixed(5)}|${b[0].toFixed(5)},${b[1].toFixed(5)}|${alts}|${JSON.stringify(vopt)}`;
   if (ROUTE_CACHE.has(k)) return ROUTE_CACHE.get(k);
   const p = (async () => {
     await slot();
     try {
       for (const fn of [valhalla, osrmRaw, valhalla]) {
-        try { return await fn(profile, a, b, alts); } catch { /* 다음 서버로 */ }
+        try { return await fn(profile, a, b, alts, vopt); } catch { /* 다음 서버로 */ }
       }
     } finally { release(); }
     ROUTE_CACHE.delete(k); // 실패한 결과는 기억하지 않음
@@ -115,18 +116,33 @@ function osrm(profile, a, b, alts = false) {
 }
 
 // 자전거 구간: 대안 경로 여러 개 중 선택한 기준(혼잡 회피 / 자전거길 우선 / 최단 거리)으로 가장 좋은 것
-async function bikeLeg(a, b, band, mode, label) {
-  // 후보: 자전거길 위주 경로(bike) + 도로 경로(car) + 생활도로 경로(foot) — 타슈는 차도·자전거길 모두 달릴 수 있음
-  const [bk, car, foot] = await Promise.all([osrm('bike', a, b, true), osrm('car', a, b), osrm('foot', a, b)]);
+// 사용자 길 취향 (기본값)
+export const DEFAULT_PREFS = { bikeway: true, bigRoad: false, slope: 'balance', avoidCong: true, minTransfer: false, walk: 'balance', bikeRange: 'balance' };
+const HILLS = { avoid: 0, balance: 0.35, ok: 0.9 };            // Valhalla 오르막 회피 정도 (0 = 최대한 피함)
+const WALK_MAX = { less: 0.4, balance: 0.6, more: 1.0 };      // 정류장·역까지 걸어갈 최대 거리(km)
+const WALK_TOTAL = { less: 0.9, balance: 1.6, more: 3 };      // 한 경로에서 걷는 총 거리 한도(km)
+const BIKE_MAX = { short: 2.5, balance: 4.5, long: 8 };       // 연계 경로에서 타슈로 탈 최대 거리(km)
+async function bikeLeg(a, b, band, prefs, label) {
+  // 후보: 자전거 프로필(경사로·큰길 취향 반영) + 자동차 도로 + 생활도로 — 타슈는 차도·자전거길 모두 달릴 수 있음
+  const vopt = { use_hills: HILLS[prefs.slope], use_roads: prefs.bigRoad ? 0.85 : prefs.bikeway ? 0.15 : 0.4 };
+  const [bk, car, foot] = await Promise.all([osrm('bike', a, b, true, vopt), osrm('car', a, b), prefs.bigRoad ? [] : osrm('foot', a, b)]);
   let alts = [...bk.map((r) => ({ ...r, prof: 'bike' })), ...car.map((r) => ({ ...r, prof: 'car' })), ...foot.map((r) => ({ ...r, prof: 'foot' }))].filter((r, i, arr) => r.exact || arr.every((x) => !x.exact));
   alts = dropTrails(alts);
   const scored = alts.map((r) => ({ ...r, ...analyze(r, band) }));
   const minKm = Math.min(...scored.map((r) => r.km));
-  const ok = scored.filter((r) => r.km <= minKm * (mode === 'bike' ? 2.2 : 1.4)); // 너무 먼 우회로는 제외
-  // 자전거길 우선: 자전거길을 따라가는 경로(OSM 자전거 프로필)를 먼저 고름
-  const pool = mode === 'bike' && ok.some((r) => r.prof === 'bike' && r.exact) ? ok.filter((r) => r.prof === 'bike') : ok;
-  const best = pool.sort((x, y) => x.cost[mode] - y.cost[mode])[0];
-  return { mode: 'bike', geo: best.geo, km: best.km, min: Math.max(1, Math.round(best.bikeMin)), congKm: best.congKm, bikewayKm: best.bikewayKm, exact: best.exact, label };
+  const limit = 1.35 + (prefs.bikeway ? 0.35 : 0) + (prefs.slope === 'avoid' ? 0.45 : 0);
+  const ok = scored.filter((r) => r.km <= minKm * limit); // 너무 먼 우회로는 제외
+  const cost = (r) => {
+    let c = r.segs.reduce((t, sg) => t + (sg.l / (sg.bike ? 16 : 13)) * (prefs.avoidCong ? 1 + PEN[sg.lv] : 1) * (sg.bike && prefs.bikeway ? 0.6 : 1), 0);
+    if (prefs.bigRoad && r.prof === 'car') c *= 0.85;
+    if (prefs.slope === 'avoid' && !(r.prof === 'bike' && r.vh)) c *= 1.3;   // 경사로를 피한 경로는 자전거 프로필(오르막 회피)에서만 나옴
+    if (prefs.slope === 'ok' && r.prof !== 'bike') c *= 0.95;
+    return c;
+  };
+  const best = ok.sort((x, y) => cost(x) - cost(y))[0];
+  const quickest = Math.min(...ok.map((r) => r.bikeMin));
+  return { mode: 'bike', geo: best.geo, km: best.km, min: Math.max(1, Math.round(best.bikeMin)), congKm: best.congKm, bikewayKm: best.bikewayKm, exact: best.exact, label,
+    slopeAvoided: prefs.slope === 'avoid' && best.prof === 'bike' && !!best.vh, extraMin: Math.max(0, Math.round(best.bikeMin - quickest)) };
 }
 // 산길(등산로) 지름길 걸러내기: 자동차 도로 경로보다 15% 넘게 짧거나 산길 이름(산공원로·등산로·숲길 등)이 들어간 자전거·도보 경로는 산이나 공원 숲길을
 // 가로지른 것으로 보고 뺌 (타슈는 생활자전거라 산길을 못 탐)
@@ -183,11 +199,11 @@ function finish(p, band) {
 }
 
 // 출발 쪽·도착 쪽 타슈 구간을 붙인 타슈 경로 (대여소까지 걷기 → 타슈 → 반납 대여소에서 걷기)
-async function tashuTrip(a, b, band, mode) {
+async function tashuTrip(a, b, band, prefs) {
   const r = bestTashuNear(a), d = bestTashuNear(b);
   const legs = [];
   if (r.d > 0.03) legs.push(await walkLeg(a, r.pos, `${r.name} 대여소까지 걷기`));
-  legs.push(await bikeLeg(r.pos, d.pos, band, mode, `${r.name}에서 대여 → ${d.name}에 반납`));
+  legs.push(await bikeLeg(r.pos, d.pos, band, prefs, `${r.name}에서 대여 → ${d.name}에 반납`));
   legs[legs.length - 1].rent = r; legs[legs.length - 1].ret = d;
   if (d.d > 0.03) legs.push(await walkLeg(d.pos, b, '목적지까지 걷기'));
   return legs;
@@ -255,24 +271,27 @@ function busLegOf(c, band) {
     label: `${c.r.name} 버스 · ${c.o.b.name} 승차 → ${c.d.b.name} 하차 (${stops}정거장)` };
 }
 
-export async function planAll(a, b, band, bikeMode) {
+export async function planAll(a, b, band, prefsIn) {
+  const prefs = { ...DEFAULT_PREFS, ...(prefsIn || {}) };
+  const wMax = WALK_MAX[prefs.walk], bMax = BIKE_MAX[prefs.bikeRange];
   const s1 = nearest(SUBWAY, a), s2 = nearest(SUBWAY, b);
   const subwayOk = s1.name !== s2.name && Math.abs(s1.idx - s2.idx) >= 1;
   const t1 = subwayOk ? TRANSFER[s1.idx].list[0] : null, t2 = subwayOk ? TRANSFER[s2.idx].list[0] : null;
-  const usePre = !!t1 && s1.d > 0.15, usePost = !!t2 && s2.d > 0.15;
-  const sumMin = (legs) => legs.reduce((x, l) => x + l.min, 0);
+  const usePre = !!t1 && s1.d > 0.15 && s1.d <= bMax, usePost = !!t2 && s2.d > 0.15 && s2.d <= bMax;
   const direct = dist(a, b);
+  const D = new Map(nearStops(b, wMax).map((x) => [x.s.id, x.d]));
 
-  // 버스 후보 (노선 자료로 바로 계산 — 서버 필요 없음)
-  const D = new Map(nearStops(b, 0.6).map((x) => [x.s.id, x.d]));
-  const busOnly = direct > 0.8 ? busCandidates(a, (d) => (D.has(d.b.id) ? [{ cost: walkMin(D.get(d.b.id)) }] : []), band)[0] : null;
-  // 버스 → 내린 정류장 근처 대여소에서 타슈로 목적지까지
+  // 버스만: 노선이 다른 상위 2개
+  const busList = direct > 0.8 ? busCandidates(a, (d) => (D.has(d.b.id) ? [{ cost: walkMin(D.get(d.b.id)) }] : []), band, wMax) : [];
+  const busPicks = [];
+  for (const c of busList) { if (!busPicks.some((x) => x.r.name === c.r.name)) busPicks.push(c); if (busPicks.length >= 2) break; }
+  // 버스 → 타슈
   const busThenBike = direct > 2 ? busCandidates(a, (d) => {
     const left = dist(d.b.pos, b);
-    if (left < 0.6 || left > 4 || left > direct * 0.8) return [];
+    if (left < 0.6 || left > bMax || left > direct * 0.8) return [];
     return [{ cost: walkMin(0.15) + 2 + (left * 1.3 / 13) * 60 + walkMin(0.15) }];
-  }, band)[0] : null;
-  // 타슈로 출발 정류장까지 → 버스로 목적지 근처까지
+  }, band, wMax)[0] : null;
+  // 타슈 → 버스
   let bikeThenBus = null;
   if (direct > 2) {
     const firsts = [];
@@ -281,7 +300,7 @@ export async function planAll(a, b, band, bikeMode) {
       for (const o of r.stops) {
         if (o.km >= d.km - 0.2) break;
         const lead = dist(a, o.b.pos);
-        if (lead < 0.6 || lead > 4 || lead > direct * 0.8) continue;
+        if (lead < 0.6 || lead > bMax || lead > direct * 0.8) continue;
         const rideMin = ((d.km - o.km) / BUS_KMH[band]) * 60;
         firsts.push({ r, o, d, ride: d.km - o.km, rideMin, wd, est: walkMin(0.15) + 2 + (lead * 1.3 / 13) * 60 + BUS_WAIT[band] + rideMin + walkMin(wd) });
       }
@@ -289,32 +308,17 @@ export async function planAll(a, b, band, bikeMode) {
     bikeThenBus = firsts.sort((x, y) => x.est - y.est)[0] || null;
   }
 
-  const [tashuLegs, pre, post, bus1, bus2, bus3] = await Promise.all([
-    tashuTrip(a, b, band, bikeMode),
-    usePre ? tashuTrip(a, t1.pos, band, bikeMode) : null,
-    usePost ? tashuTrip(t2.pos, b, band, bikeMode) : null,
-    busOnly ? Promise.all([walkLeg(a, busOnly.o.b.pos, `${busOnly.o.b.name} 정류장까지 걷기`), busLegOf(busOnly, band), walkLeg(busOnly.d.b.pos, b, '목적지까지 걷기')]) : null,
-    busThenBike ? Promise.all([walkLeg(a, busThenBike.o.b.pos, `${busThenBike.o.b.name} 정류장까지 걷기`), busLegOf(busThenBike, band), tashuTrip(busThenBike.d.b.pos, b, band, bikeMode)]).then(([w, bl, t]) => [w, bl, ...t]) : null,
-    bikeThenBus ? Promise.all([tashuTrip(a, bikeThenBus.o.b.pos, band, bikeMode), busLegOf(bikeThenBus, band), walkLeg(bikeThenBus.d.b.pos, b, '목적지까지 걷기')]).then(([t, bl, w]) => { const last = t[t.length - 1]; if (last.mode === 'walk') last.label = `${bikeThenBus.o.b.name} 정류장까지 걷기`; return [...t, bl, w]; }) : null,
+  const busLegs = (c) => Promise.all([walkLeg(a, c.o.b.pos, `${c.o.b.name} 정류장까지 걷기`), busLegOf(c, band), walkLeg(c.d.b.pos, b, '목적지까지 걷기')]);
+  const [tashuLegs, pre, post, busA, busB, bus2, bus3, subwayLegs] = await Promise.all([
+    tashuTrip(a, b, band, prefs),
+    usePre ? tashuTrip(a, t1.pos, band, prefs) : null,
+    usePost ? tashuTrip(t2.pos, b, band, prefs) : null,
+    busPicks[0] ? busLegs(busPicks[0]) : null,
+    busPicks[1] ? busLegs(busPicks[1]) : null,
+    busThenBike ? Promise.all([walkLeg(a, busThenBike.o.b.pos, `${busThenBike.o.b.name} 정류장까지 걷기`), busLegOf(busThenBike, band), tashuTrip(busThenBike.d.b.pos, b, band, prefs)]).then(([w, bl, t]) => [w, bl, ...t]) : null,
+    bikeThenBus ? Promise.all([tashuTrip(a, bikeThenBus.o.b.pos, band, prefs), busLegOf(bikeThenBus, band), walkLeg(bikeThenBus.d.b.pos, b, '목적지까지 걷기')]).then(([t, bl, w]) => { const last = t[t.length - 1]; if (last.mode === 'walk') last.label = `${bikeThenBus.o.b.name} 정류장까지 걷기`; return [...t, bl, w]; }) : null,
+    subwayOk ? Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, b, '목적지까지 걷기')]) : null,
   ]);
-
-  // ③ 타슈
-  const tashu = finish({ key: 'tashu', title: '타슈', legs: tashuLegs }, band);
-
-  // 여러 방법 중 하나를 골라 볼 수 있게 묶음 (기본은 가장 빠른 것)
-  const group = (key, title, opts, why) => {
-    const vs = opts.filter((o) => o.legs).map((o) => finish({ key, title, vname: o.vname, legs: o.legs }, band));
-    if (!vs.length) return { key, title, none: true, why };
-    const vdef = vs.reduce((bi, v, i) => (v.min < vs[bi].min ? i : bi), 0);
-    return { ...vs[vdef], variants: vs, vdef };
-  };
-
-  // ② 대중교통: 지하철 / 버스
-  const subwayLegs = subwayOk ? await Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, b, '목적지까지 걷기')]) : null;
-  const transit = group('transit', '대중교통', [{ vname: '지하철', legs: subwayLegs }, { vname: '버스', legs: bus1 }],
-    '걸어갈 만한 거리 안에 바로 가는 지하철·버스가 없어요.');
-
-  // ① 대중교통 + 타슈: 지하철+타슈 / 버스+타슈
   const sub = [];
   if (pre) {
     const bk = pre.find((l) => l.mode === 'bike'); bk.label = `${bk.rent.name}에서 대여 → ${t1.name}(${s1.name} 환승 대여소)에 반납`;
@@ -322,15 +326,42 @@ export async function planAll(a, b, band, bikeMode) {
   }
   if (post) sub.push(await Promise.all([walkLeg(a, s1.pos, `${s1.name}까지 걷기`), subwayLeg(s1, s2), walkLeg(s2.pos, t2.pos, `${t2.name} 환승 대여소까지`), ...post.filter((l) => !l.label.includes('대여소까지'))]));
   if (pre && post) sub.push(await Promise.all([...sub[0].slice(0, -1), walkLeg(s2.pos, t2.pos, `${t2.name} 환승 대여소까지`), ...post.filter((l) => !l.label.includes('대여소까지'))]));
-  const bestOf = (arr) => arr.filter(Boolean).sort((x, y) => sumMin(x) - sumMin(y))[0] || null;
-  const combo = group('combo', '대중교통+타슈', [{ vname: '지하철+타슈', legs: bestOf(sub) }, { vname: '버스+타슈', legs: bestOf([bus2, bus3]) }],
-    '두 곳이 가까워서 대중교통으로 갈아탈 구간이 없어요. 타슈만 타는 게 가장 좋아요.');
 
-  const plans = [combo, transit, tashu];
-  const real = plans.filter((p) => !p.none);
-  const fastest = real.reduce((x, y) => (y.min < x.min ? y : x));
-  const greenest = real.reduce((x, y) => (y.co2 > x.co2 ? y : x));
-  fastest.fastest = true;
-  if (greenest.co2 > 0) greenest.greenest = true;
-  return plans;
+  // 모든 경로를 한 목록으로
+  const list = [];
+  const add = (cat, vname, legs) => { if (legs) list.push(finish({ key: `${cat}-${list.length}`, cat, vname, title: vname, legs }, band)); };
+  add('tashu', '타슈', tashuLegs);
+  add('transit', '지하철', subwayLegs);
+  add('transit', '버스', busA);
+  add('transit', '버스', busB);
+  sub.forEach((lg) => add('combo', '지하철+타슈', lg));
+  add('combo', '버스+타슈', bus2);
+  add('combo', '버스+타슈', bus3);
+
+  // 걷기 취향: 너무 많이 걷는 대중교통 경로는 뺌 (타슈만 타는 경로는 항상 남김)
+  const walkOk = list.filter((p) => p.cat === 'tashu' || p.walkM / 1000 <= WALK_TOTAL[prefs.walk]);
+  const kept = walkOk.length > 1 ? walkOk : list;
+  // 추천 점수: 시간 + 취향 (환승·걷기·혼잡·자전거길)
+  const walkW = { less: 0.6, balance: 0.15, more: 0 }[prefs.walk];
+  kept.forEach((p) => {
+    const walkMinAll = p.legs.filter((l) => l.mode === 'walk').reduce((t, l) => t + l.min, 0);
+    const bikeway = p.legs.reduce((t, l) => t + (l.bikewayKm || 0), 0);
+    p.bikewayKm = bikeway;
+    p.slopeAvoided = p.legs.some((l) => l.slopeAvoided);
+    p.extraMin = p.legs.reduce((t, l) => t + (l.slopeAvoided ? l.extraMin || 0 : 0), 0);
+    p.score = p.min + walkMinAll * walkW + p.transfers * (prefs.minTransfer ? 9 : 1.5) + (prefs.avoidCong ? p.congKm * 2 : 0) - (prefs.bikeway ? bikeway * 0.8 : 0);
+    const tags = [];
+    if (p.slopeAvoided) tags.push('경사로 회피');
+    if (prefs.bigRoad && p.bikeKm > 0) tags.push('큰길 위주');
+    if (bikeway >= 0.3) tags.push(`자전거길 ${bikeway.toFixed(1)}km`);
+    if (p.bikeKm > 0 && p.congKm < 0.05) tags.push('혼잡 도로 없음');
+    if (p.cat !== 'tashu' && p.transfers === 0) tags.push('환승 없음');
+    if (p.walkM <= 300) tags.push('걷기 적음');
+    p.tags = tags.slice(0, 2);
+  });
+  kept.sort((x, y) => x.score - y.score);
+  kept[0].rec = true;
+  kept.reduce((x, y) => (y.min < x.min ? y : x)).fastest = true;
+  const g = kept.reduce((x, y) => (y.co2 > x.co2 ? y : x)); if (g.co2 > 0) g.greenest = true;
+  return kept;
 }
