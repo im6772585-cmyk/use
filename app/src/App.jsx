@@ -218,11 +218,13 @@ function useMap(ref, center) {
     // 밝고 차분한 지도 스타일 (CARTO Voyager)
     // 노랑·검정·흰색 3색 벡터 지도 (OpenFreeMap, 한글 지명)
     const box = () => ref.current?.parentElement;
-    let gl = null;
-    try { gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" }).addTo(map); } catch { gl = null; }
-    if (!gl || !gl.getMaplibreMap()) {
+    const gl = L.maplibreGL({ style: mapStyle, attribution: '© OpenFreeMap © OpenStreetMap', localIdeographFontFamily: "'Apple SD Gothic Neo','Noto Sans KR','Malgun Gothic',sans-serif" });
+    let glOk = true;
+    try { gl.addTo(map); glOk = !!gl.getMaplibreMap(); } catch { glOk = false; }
+    if (!glOk) {
       // WebGL을 못 쓰는 기기: 앱이 멈추지 않게 일반 지도 그림으로 대신 보여 줌
-      try { if (gl) map.removeLayer(gl); } catch { /* 무시 */ }
+      gl.onRemove = () => {}; gl.getEvents = () => ({});
+      try { map.removeLayer(gl); } catch { /* 무시 */ }
       L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(map);
       mapRef.current = map; force((n) => n + 1);
       return () => map.remove();
