@@ -139,7 +139,10 @@ async function bikeLeg(a, b, band, prefs, label) {
     if (prefs.slope === 'ok' && r.prof !== 'bike') c *= 0.95;
     return c;
   };
-  const best = ok.sort((x, y) => cost(x) - cost(y))[0];
+  // 경사로 피하기·자전거길 우선: 오르막·자전거길을 따지는 자전거 경로 안에서만 고름
+  const bikeVh = ok.filter((r) => r.prof === 'bike' && r.vh);
+  const pool = (prefs.slope === 'avoid' || (prefs.bikeway && !prefs.bigRoad)) && bikeVh.length ? bikeVh : ok;
+  const best = pool.sort((x, y) => cost(x) - cost(y))[0];
   const quickest = Math.min(...ok.map((r) => r.bikeMin));
   return { mode: 'bike', geo: best.geo, km: best.km, min: Math.max(1, Math.round(best.bikeMin)), congKm: best.congKm, bikewayKm: best.bikewayKm, exact: best.exact, label,
     slopeAvoided: prefs.slope === 'avoid' && best.prof === 'bike' && !!best.vh, extraMin: Math.max(0, Math.round(best.bikeMin - quickest)) };

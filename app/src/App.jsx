@@ -680,17 +680,20 @@ function rideSummary(p) {
   return parts.join('  ›  ');
 }
 // 내 길 취향 설정 (자전거 사용자 기준)
+const PfToggle = ({ d, set, k }) => <button className={`tg ${d[k] ? 'on' : ''}`} role="switch" aria-checked={d[k]} onClick={() => set(k, !d[k])}><i /></button>;
+const PfSeg = ({ d, set, k, opts }) => <div className="pf-seg">{opts.map(([v, nm, sub]) => <button key={v} aria-pressed={d[k] === v} onClick={() => set(k, v)}>{nm}{sub && <small>{sub}</small>}</button>)}</div>;
+const PfRow = ({ ico, title, desc, children, right }) => (
+  <div className="pf-card">
+    <div className="pf-row"><span className="pf-ico"><Icon svg={ico} size={20} /></span><span className="pf-txt"><b>{title}</b><small>{desc}</small></span>{right}</div>
+    {children}
+  </div>
+);
 function PrefsSheet({ prefs, onClose, onSave }) {
   const [d, setD] = useState(prefs);
   const set = (k, v) => setD((o) => ({ ...o, [k]: v }));
-  const Toggle = ({ k }) => <button className={`tg ${d[k] ? 'on' : ''}`} role="switch" aria-checked={d[k]} onClick={() => set(k, !d[k])}><i /></button>;
-  const Seg = ({ k, opts }) => <div className="pf-seg">{opts.map(([v, nm, sub]) => <button key={v} aria-pressed={d[k] === v} onClick={() => set(k, v)}>{nm}{sub && <small>{sub}</small>}</button>)}</div>;
-  const Row = ({ ico, title, desc, children, right }) => (
-    <div className="pf-card">
-      <div className="pf-row"><span className="pf-ico"><Icon svg={ico} size={20} /></span><span className="pf-txt"><b>{title}</b><small>{desc}</small></span>{right}</div>
-      {children}
-    </div>
-  );
+  const Toggle = ({ k }) => PfToggle({ d, set, k });
+  const Seg = ({ k, opts }) => PfSeg({ d, set, k, opts });
+  const Row = PfRow;
   const K = '#305A52';
   return (
     <div className="modal-bg" onClick={onClose}>
@@ -699,20 +702,20 @@ function PrefsSheet({ prefs, onClose, onSave }) {
         <div className="modal-head"><div><small className="pf-kicker">내게 딱 맞는 타슈길</small><b>어떤 길이 편하세요?</b></div><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
         <p className="pf-lead">고른 취향을 반영해 조금 더 편한 경로를 먼저 보여 드려요.</p>
         <div className="pf-list">
-          <Row ico={bikeSvg(K)} title="자전거길 우선" desc="차도보다 자전거길·천변길을 먼저 찾아요" right={<Toggle k="bikeway" />} />
-          <Row ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L10 4 M14 4 L20 20 M12 8v2 M12 13v2 M12 18v2"/></svg>`} title="큰길로 가기" desc="골목보다 넓고 밝은 큰 도로 위주로 가요" right={<Toggle k="bigRoad" />} />
-          <Row ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18 L10 11 L14 14 L21 6"/><path d="M16 6h5v5"/></svg>`} title="경사로" desc="오르막을 얼마나 피할까요?">
-            <Seg k="slope" opts={[['avoid', '피할래요'], ['balance', '적당히'], ['ok', '괜찮아요']]} />
+          <PfRow ico={bikeSvg(K)} title="자전거길 우선" desc="차도보다 자전거길·천변길을 먼저 찾아요" right={Toggle({ k: 'bikeway' })} />
+          <PfRow ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L10 4 M14 4 L20 20 M12 8v2 M12 13v2 M12 18v2"/></svg>`} title="큰길로 가기" desc="골목보다 넓고 밝은 큰 도로 위주로 가요" right={Toggle({ k: 'bigRoad' })} />
+          <PfRow ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 18 L10 11 L14 14 L21 6"/><path d="M16 6h5v5"/></svg>`} title="경사로" desc="오르막을 얼마나 피할까요?">
+            {Seg({ k: 'slope', opts: [['avoid', '피할래요'], ['balance', '적당히'], ['ok', '괜찮아요']] })}
             {d.slope === 'avoid' && <p className="pf-note">경사로를 피하면 평평한 길로 돌아가서 시간이 조금 더 걸릴 수 있어요.</p>}
-          </Row>
-          <Row ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>`} title="혼잡 도로 피하기" desc="대전 도로 통행 자료로 막히는 도로를 덜 지나가요" right={<Toggle k="avoidCong" />} />
-          <Row ico={busSvg(K)} title="환승 최소" desc="조금 늦더라도 갈아타는 횟수가 적은 경로를 먼저 보여 줘요" right={<Toggle k="minTransfer" />} />
-          <Row ico={walkSvg(K)} title="걷기" desc="정류장·역·대여소까지 얼마나 걸을까요?">
-            <Seg k="walk" opts={[['less', '조금만 걸을게요', '400m 안'], ['balance', '균형', '600m 안'], ['more', '더 걸어도 괜찮아요', '1km 안']]} />
-          </Row>
-          <Row ico={bikeSvg(K)} title="타슈 타는 거리" desc="대중교통과 이어 탈 때 자전거로 얼마나 달릴까요?">
-            <Seg k="bikeRange" opts={[['short', '짧게', '2.5km 안'], ['balance', '적당히', '4.5km 안'], ['long', '길어도 좋아요', '8km 안']]} />
-          </Row>
+          </PfRow>
+          <PfRow ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round"><path d="M3 12h4l2-5 4 10 2-5h6"/></svg>`} title="혼잡 도로 피하기" desc="대전 도로 통행 자료로 막히는 도로를 덜 지나가요" right={Toggle({ k: 'avoidCong' })} />
+          <PfRow ico={busSvg(K)} title="환승 최소" desc="조금 늦더라도 갈아타는 횟수가 적은 경로를 먼저 보여 줘요" right={Toggle({ k: 'minTransfer' })} />
+          <PfRow ico={walkSvg(K)} title="걷기" desc="정류장·역·대여소까지 얼마나 걸을까요?">
+            {Seg({ k: 'walk', opts: [['less', '조금만 걸을게요', '400m 안'], ['balance', '균형', '600m 안'], ['more', '더 걸어도 괜찮아요', '1km 안']] })}
+          </PfRow>
+          <PfRow ico={bikeSvg(K)} title="타슈 타는 거리" desc="대중교통과 이어 탈 때 자전거로 얼마나 달릴까요?">
+            {Seg({ k: 'bikeRange', opts: [['short', '짧게', '2.5km 안'], ['balance', '적당히', '4.5km 안'], ['long', '길어도 좋아요', '8km 안']] })}
+          </PfRow>
         </div>
         <button className="pf-save" onClick={() => onSave(d)}>이대로 좋아요</button>
       </div>
