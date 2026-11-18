@@ -701,7 +701,7 @@ function PrefsSheet({ prefs, onClose, onSave, first = false }) {
       <div className="modal pref-modal" onClick={(e) => e.stopPropagation()}>
         <i className="sheet-grip" />
         <div className="modal-head"><div><small className="pf-kicker">내게 딱 맞는 타슈길</small><b>어떤 길이 편하세요?</b></div><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
-        <p className="pf-lead">{first ? '처음 오셨네요! 취향을 골라 두면 길찾기에서 나에게 맞는 경로를 먼저 보여 드려요. 나중에 홈의 ‘취향’ 버튼으로 바꿀 수 있어요.' : '고른 취향을 반영해 조금 더 편한 경로를 먼저 보여 드려요.'}</p>
+        <p className="pf-lead">{first ? '오늘은 어떤 길로 달려 볼까요? 고른 취향에 맞는 경로를 먼저 보여 드려요. 지난번에 고른 값이 미리 선택돼 있어요.' : '고른 취향을 반영해 조금 더 편한 경로를 먼저 보여 드려요.'}</p>
         <div className="pf-list">
           <PfRow ico={bikeSvg(K)} title="자전거길 우선" desc="차도보다 자전거길·천변길을 먼저 찾아요" right={Toggle({ k: 'bikeway' })} />
           <PfRow ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L10 4 M14 4 L20 20 M12 8v2 M12 13v2 M12 18v2"/></svg>`} title="큰길로 가기" desc="골목보다 넓고 밝은 큰 도로 위주로 가요" right={Toggle({ k: 'bigRoad' })} />
@@ -719,7 +719,7 @@ function PrefsSheet({ prefs, onClose, onSave, first = false }) {
           </PfRow>
         </div>
         <button className="pf-save" onClick={() => onSave(d)}>이대로 좋아요</button>
-        {first && <button className="pf-skip" onClick={onClose}>기본 설정으로 시작할게요</button>}
+        {first && <button className="pf-skip" onClick={onClose}>지난번 그대로 시작할게요</button>}
       </div>
     </div>
   );
@@ -1303,8 +1303,7 @@ export default function App() {
   const savePrefs = (v) => { try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 진행 */ } setAskPrefs(false); };
   const afterSplash = useCallback(() => {
     setScreen('home');
-    let done = false; try { done = !!localStorage.getItem('tashu-prefs-set'); } catch { /* 무시 */ }
-    if (!done) setAskPrefs(true);
+    setAskPrefs(true); // 앱을 열 때마다 내 길 취향 확인 (지난번 고른 값이 미리 선택돼 있음)
   }, []);
   const home = useCallback(() => setScreen('home'), []);
   const go = useCallback((sc) => { setCourseId(null); setTrip(null); setScreen(sc); }, []);
