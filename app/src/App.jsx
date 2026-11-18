@@ -737,6 +737,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [prefs, setPrefsRaw] = useState(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('tashu-prefs') || '{}') }; } catch { return DEFAULT_PREFS; } });
   const setPrefs = (v) => { setPrefsRaw(v); try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 이번엔 적용 */ } };
   const [showPrefs, setShowPrefs] = useState(false);
+  const [sheetMode, setSheetMode] = useState('mid'); // min: 내림(지도 크게) / mid: 기본 / max: 크게
+  const dragRef = useRef(null), skipClickRef = useRef(false);
   const [plans, setPlans] = useState(null);        // 모든 경로 목록
   const [cat, setCat] = useState('all');           // 전체 / 대중교통 / 타슈 / 연계
   const [sortBy, setSortBy] = useState('rec');     // 추천순 / 최단
@@ -845,7 +847,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       map.on('zoomend moveend', declutter);
       g.on('remove', () => map.off('zoomend moveend', declutter));
       setTimeout(declutter, 0);
-      if (bounds && !guide) map.fitBounds(bounds, { paddingTopLeft: [30, 190], paddingBottomRight: [30, 360] });
+      if (bounds && !guide) map.fitBounds(bounds, { paddingTopLeft: [30, 190], paddingBottomRight: [30, Math.round(window.innerHeight * 0.4) + 20] });
     }
   }, [shown, selId, mapRef, course]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1004,7 +1006,21 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       )}
 
       {!editing && !guide && (
-        <div className="sheet">
+        <div className={`sheet sh-${sheetMode}`}>
+          {!course && to && (
+            <button className="sheet-handle" aria-label={sheetMode === 'min' ? '경로 목록 올리기' : '경로 목록 내리기'}
+              onClick={() => setSheetMode((m) => (m === 'min' ? 'mid' : m === 'mid' ? 'min' : 'mid'))}
+              onPointerDown={(e) => { dragRef.current = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ } }}
+              onPointerUp={(e) => {
+                const dy = dragRef.current == null ? 0 : e.clientY - dragRef.current; dragRef.current = null;
+                if (Math.abs(dy) < 25) return;
+                e.preventDefault(); e.stopPropagation(); skipClickRef.current = true;
+                setSheetMode((m) => (dy > 0 ? (m === 'max' ? 'mid' : 'min') : (m === 'min' ? 'mid' : 'max')));
+              }}
+              onClickCapture={(e) => { if (skipClickRef.current) { skipClickRef.current = false; e.stopPropagation(); e.preventDefault(); } }}>
+              <i /><span>{sheetMode === 'min' ? '경로 목록 보기' : '내려서 지도 크게 보기'}</span>
+            </button>
+          )}
           {won && <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 화면에 모였어요.</small></div></div>}
           {arrived && (
             <div className="arrived">
@@ -1066,7 +1082,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                 const st = open ? stepsOf(r) : null;
                 return (
                   <div key={r.key} className={`rcard ${on ? 'on' : ''}`}>
-                    <button className="rc-main" onClick={() => { setSelId(r.key); setOpenId(open ? null : r.key); }}>
+                    <button className="rc-main" onClick={() => { setSelId(r.key); setOpenId(open ? null : r.key); if (sheetMode === 'min') setSheetMode('mid'); }}>
                       <div className="rc-top">
                         <span className="rc-min"><b>{r.min}</b>분</span>
                         <span className="rc-meta"><b>{hhmm(r.arrive)} 도착</b><small>{r.vname} · 환승 {r.transfers}회 · 걷기 {r.walkM >= 1000 ? `${(r.walkM / 1000).toFixed(1)}km` : `${r.walkM}m`}</small></span>

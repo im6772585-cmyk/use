@@ -768,3 +768,26 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .pref-home { flex: none; height: 40px; padding: 0 12px; border: none; border-radius: 20px; background: #EEF6C4; color: #305A52; font-weight: 800; font-size: 14px;
   display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 8px rgba(21,39,62,.10); font-family: inherit; }
 .pf-skip { display: block; width: 100%; margin-top: 8px; height: 44px; border: none; background: transparent; color: #305A52; font-weight: 800; font-size: 14px; font-family: inherit; }
+/* v14: 경로 목록 시트 높이 (내림/기본/크게) + 손잡이 */
+.screen.route .sheet { transition: max-height .25s ease; padding-top: 0 !important; }
+.screen.route .sheet::before { display: none !important; }
+.screen.route .sheet.sh-mid { max-height: 40vh; }
+.screen.route .sheet.sh-max { max-height: 78vh; }
+.screen.route .sheet.sh-min { max-height: 150px; overflow: hidden; }
+.sheet-handle { position: sticky; top: 0; z-index: 3; display: flex; flex-direction: column; align-items: center; gap: 3px; width: calc(100% + 28px); margin: 0 -14px 6px;
+  padding: 8px 0 6px; border: none; background: #F4F5EE; font-family: inherit; cursor: grab; touch-action: none; }
+.sheet-handle i { display: block; width: 44px; height: 5px; border-radius: 3px; background: #A9AE86; }
+.sheet-handle span { font-size: 11.5px; font-weight: 700; color: #4A5A63; }
+/* 내림 상태: 고른 경로 카드 요약만 */
+.sheet.sh-min .rl-head, .sheet.sh-min .rl-sort, .sheet.sh-min .rcard:not(.on), .sheet.sh-min .rc-detail, .sheet.sh-min .rc-line, .sheet.sh-min .rc-tags { display: none !important; }
+.sheet.sh-min .rcard.on { box-shadow: 0 2px 10px rgba(21,39,62,.08); }
+.sheet.sh-min .rc-top { margin-bottom: 8px; }
+/* 카드 조금 작게 */
+.rc-main { padding: 12px 14px 10px !important; }
+.rc-min b { font-size: 28px !important; }
+.rl-head b { font-size: 18px !important; }
+.rcard { margin-bottom: 10px !important; }
+.screen.route .sheet.sh-min { max-height: 196px; }
+.sheet-handle { margin-bottom: 2px; padding: 7px 0 4px; }
+.rl-sort { margin: 2px 0 10px !important; }
+.rl-head { margin-bottom: 4px !important; }
