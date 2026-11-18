@@ -725,6 +725,62 @@ function PrefsSheet({ prefs, onClose, onSave, first = false }) {
   );
 }
 
+// 아래 시트를 손가락(또는 마우스·휠)으로 끌어서 내리고 올리기
+function useSheetDrag(ref, mode, setMode, enabled) {
+  useEffect(() => {
+    const el = ref.current; if (!el || !enabled) return;
+    const vh = () => window.innerHeight;
+    let st = null, moved = false, suppress = false, lastH = 0;
+    const begin = (y) => { st = { y, h: el.getBoundingClientRect().height, top: el.scrollTop }; moved = false; };
+    const move = (y, ev) => {
+      if (!st) return;
+      const dy = y - st.y;
+      const canDown = dy > 0 && el.scrollTop <= 0 && st.top <= 0;
+      const canUp = dy < 0 && mode !== 'max';
+      if (!moved && Math.abs(dy) < 8) return;
+      if (!moved && !canDown && !canUp) { st = null; return; } // 목록 안 스크롤은 그대로
+      moved = true;
+      if (ev.cancelable) ev.preventDefault();
+      el.style.transition = 'none'; el.classList.add('dragging');
+      lastH = Math.max(120, Math.min(vh() * 0.85, st.h - dy));
+      el.style.maxHeight = `${lastH}px`; el.style.height = `${lastH}px`;
+    };
+    const end = () => {
+      if (!st) return;
+      if (moved) {
+        const h = lastH / vh();
+        setMode(h < 0.3 ? 'min' : h < 0.6 ? 'mid' : 'max');
+        suppress = true; setTimeout(() => { suppress = false; }, 50);
+      }
+      el.style.transition = ''; el.style.maxHeight = ''; el.style.height = ''; el.classList.remove('dragging');
+      st = null; moved = false;
+    };
+    const ts = (e) => begin(e.touches[0].clientY);
+    const tm = (e) => move(e.touches[0].clientY, e);
+    const md = (e) => { if (e.button === 0) begin(e.clientY); };
+    const mm = (e) => move(e.clientY, e);
+    const click = (e) => { if (suppress) { e.stopPropagation(); e.preventDefault(); } };
+    let wheelLock = 0;
+    const wheel = (e) => {
+      const now = Date.now(); if (now < wheelLock) return;
+      if (e.deltaY > 0 && mode !== 'max') { e.preventDefault(); setMode(mode === 'min' ? 'mid' : 'max'); wheelLock = now + 400; }
+      else if (e.deltaY < 0 && el.scrollTop <= 0 && mode !== 'min') { e.preventDefault(); setMode(mode === 'max' ? 'mid' : 'min'); wheelLock = now + 400; }
+    };
+    el.addEventListener('touchstart', ts, { passive: true });
+    el.addEventListener('touchmove', tm, { passive: false });
+    el.addEventListener('touchend', end); el.addEventListener('touchcancel', end);
+    el.addEventListener('mousedown', md); window.addEventListener('mousemove', mm); window.addEventListener('mouseup', end);
+    el.addEventListener('click', click, true);
+    el.addEventListener('wheel', wheel, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', ts); el.removeEventListener('touchmove', tm);
+      el.removeEventListener('touchend', end); el.removeEventListener('touchcancel', end);
+      el.removeEventListener('mousedown', md); window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', end);
+      el.removeEventListener('click', click, true); el.removeEventListener('wheel', wheel);
+    };
+  }, [ref, mode, setMode, enabled]);
+}
+
 function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, openRent, openReturn }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
@@ -738,7 +794,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const setPrefs = (v) => { setPrefsRaw(v); try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 이번엔 적용 */ } };
   const [showPrefs, setShowPrefs] = useState(false);
   const [sheetMode, setSheetMode] = useState('mid'); // min: 내림(지도 크게) / mid: 기본 / max: 크게
-  const dragRef = useRef(null), skipClickRef = useRef(false);
+  const sheetRef = useRef(null);
   const [plans, setPlans] = useState(null);        // 모든 경로 목록
   const [cat, setCat] = useState('all');           // 전체 / 대중교통 / 타슈 / 연계
   const [sortBy, setSortBy] = useState('rec');     // 추천순 / 최단
@@ -928,6 +984,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const steps = p && !p.none ? stepsOf(p) : [];
   const curStep = guide?.steps[guide.i];
   const nearRet = arrived && to ? nearest(TASHU, to.pos) : null;
+  useSheetDrag(sheetRef, sheetMode, setSheetMode, !!to && !course && !editing && !guide);
 
   return (
     <div className={`screen route ${guide ? 'guiding' : ''}`}>
@@ -1006,19 +1063,11 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       )}
 
       {!editing && !guide && (
-        <div className={`sheet sh-${sheetMode}`}>
+        <div ref={sheetRef} className={`sheet sh-${sheetMode}`}>
           {!course && to && (
             <button className="sheet-handle" aria-label={sheetMode === 'min' ? '경로 목록 올리기' : '경로 목록 내리기'}
-              onClick={() => setSheetMode((m) => (m === 'min' ? 'mid' : m === 'mid' ? 'min' : 'mid'))}
-              onPointerDown={(e) => { dragRef.current = e.clientY; try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* 무시 */ } }}
-              onPointerUp={(e) => {
-                const dy = dragRef.current == null ? 0 : e.clientY - dragRef.current; dragRef.current = null;
-                if (Math.abs(dy) < 25) return;
-                e.preventDefault(); e.stopPropagation(); skipClickRef.current = true;
-                setSheetMode((m) => (dy > 0 ? (m === 'max' ? 'mid' : 'min') : (m === 'min' ? 'mid' : 'max')));
-              }}
-              onClickCapture={(e) => { if (skipClickRef.current) { skipClickRef.current = false; e.stopPropagation(); e.preventDefault(); } }}>
-              <i /><span>{sheetMode === 'min' ? '경로 목록 보기' : '내려서 지도 크게 보기'}</span>
+              onClick={() => setSheetMode((m) => (m === 'min' ? 'mid' : 'min'))}>
+              <i /><span>{sheetMode === 'min' ? '위로 올려서 경로 목록 보기' : '아래로 내려서 지도 크게 보기'}</span>
             </button>
           )}
           {won && <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 화면에 모였어요.</small></div></div>}
