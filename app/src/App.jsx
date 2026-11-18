@@ -726,33 +726,31 @@ function PrefsSheet({ prefs, onClose, onSave, first = false }) {
 }
 
 // 아래 시트를 손가락(또는 마우스·휠)으로 끌어서 내리고 올리기
-function useSheetDrag(ref, mode, setMode, enabled) {
+// 아래 시트를 손가락(또는 마우스·휠)으로 끌면, 손을 놓은 높이에서 그대로 멈춤
+const SHEET_MIN = 130;
+function useSheetDrag(ref, setH, enabled) {
   useEffect(() => {
     const el = ref.current; if (!el || !enabled) return;
-    const vh = () => window.innerHeight;
+    const maxH = () => window.innerHeight * 0.85;
     let st = null, moved = false, suppress = false, lastH = 0;
     const begin = (y) => { st = { y, h: el.getBoundingClientRect().height, top: el.scrollTop }; moved = false; };
     const move = (y, ev) => {
       if (!st) return;
       const dy = y - st.y;
       const canDown = dy > 0 && el.scrollTop <= 0 && st.top <= 0;
-      const canUp = dy < 0 && mode !== 'max';
+      const canUp = dy < 0 && st.h < maxH() - 2;
       if (!moved && Math.abs(dy) < 8) return;
       if (!moved && !canDown && !canUp) { st = null; return; } // 목록 안 스크롤은 그대로
       moved = true;
       if (ev.cancelable) ev.preventDefault();
       el.style.transition = 'none'; el.classList.add('dragging');
-      lastH = Math.max(120, Math.min(vh() * 0.85, st.h - dy));
+      lastH = Math.max(SHEET_MIN, Math.min(maxH(), st.h - dy));
       el.style.maxHeight = `${lastH}px`; el.style.height = `${lastH}px`;
     };
     const end = () => {
       if (!st) return;
-      if (moved) {
-        const h = lastH / vh();
-        setMode(h < 0.3 ? 'min' : h < 0.6 ? 'mid' : 'max');
-        suppress = true; setTimeout(() => { suppress = false; }, 50);
-      }
-      el.style.transition = ''; el.style.maxHeight = ''; el.style.height = ''; el.classList.remove('dragging');
+      if (moved) { setH(Math.round(lastH)); suppress = true; setTimeout(() => { suppress = false; }, 50); }
+      el.style.transition = ''; el.classList.remove('dragging');
       st = null; moved = false;
     };
     const ts = (e) => begin(e.touches[0].clientY);
@@ -760,11 +758,10 @@ function useSheetDrag(ref, mode, setMode, enabled) {
     const md = (e) => { if (e.button === 0) begin(e.clientY); };
     const mm = (e) => move(e.clientY, e);
     const click = (e) => { if (suppress) { e.stopPropagation(); e.preventDefault(); } };
-    let wheelLock = 0;
     const wheel = (e) => {
-      const now = Date.now(); if (now < wheelLock) return;
-      if (e.deltaY > 0 && mode !== 'max') { e.preventDefault(); setMode(mode === 'min' ? 'mid' : 'max'); wheelLock = now + 400; }
-      else if (e.deltaY < 0 && el.scrollTop <= 0 && mode !== 'min') { e.preventDefault(); setMode(mode === 'max' ? 'mid' : 'min'); wheelLock = now + 400; }
+      const h = el.getBoundingClientRect().height;
+      if (e.deltaY > 0 && h < maxH() - 2) { e.preventDefault(); setH(Math.round(Math.min(maxH(), h + e.deltaY))); }
+      else if (e.deltaY < 0 && el.scrollTop <= 0 && h > SHEET_MIN + 2) { e.preventDefault(); setH(Math.round(Math.max(SHEET_MIN, h + e.deltaY))); }
     };
     el.addEventListener('touchstart', ts, { passive: true });
     el.addEventListener('touchmove', tm, { passive: false });
@@ -778,7 +775,7 @@ function useSheetDrag(ref, mode, setMode, enabled) {
       el.removeEventListener('mousedown', md); window.removeEventListener('mousemove', mm); window.removeEventListener('mouseup', end);
       el.removeEventListener('click', click, true); el.removeEventListener('wheel', wheel);
     };
-  }, [ref, mode, setMode, enabled]);
+  }, [ref, setH, enabled]);
 }
 
 function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, openRent, openReturn }) {
@@ -793,7 +790,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [prefs, setPrefsRaw] = useState(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('tashu-prefs') || '{}') }; } catch { return DEFAULT_PREFS; } });
   const setPrefs = (v) => { setPrefsRaw(v); try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 이번엔 적용 */ } };
   const [showPrefs, setShowPrefs] = useState(false);
-  const [sheetMode, setSheetMode] = useState('mid'); // min: 내림(지도 크게) / mid: 기본 / max: 크게
+  const [sheetH, setSheetH] = useState(null); // 사용자가 끌어 놓은 목록 높이(px). null이면 기본 높이
+  const sheetMode = sheetH == null ? 'mid' : sheetH < 210 ? 'min' : 'free';
   const sheetRef = useRef(null);
   const [plans, setPlans] = useState(null);        // 모든 경로 목록
   const [cat, setCat] = useState('all');           // 전체 / 대중교통 / 타슈 / 연계
@@ -984,7 +982,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const steps = p && !p.none ? stepsOf(p) : [];
   const curStep = guide?.steps[guide.i];
   const nearRet = arrived && to ? nearest(TASHU, to.pos) : null;
-  useSheetDrag(sheetRef, sheetMode, setSheetMode, !!to && !course && !editing && !guide);
+  useSheetDrag(sheetRef, setSheetH, !!to && !course && !editing && !guide);
 
   return (
     <div className={`screen route ${guide ? 'guiding' : ''}`}>
@@ -1063,10 +1061,10 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       )}
 
       {!editing && !guide && (
-        <div ref={sheetRef} className={`sheet sh-${sheetMode}`}>
+        <div ref={sheetRef} className={`sheet sh-${sheetMode}`} style={sheetH != null && !course && to ? { maxHeight: sheetH, height: sheetH } : undefined}>
           {!course && to && (
             <button className="sheet-handle" aria-label={sheetMode === 'min' ? '경로 목록 올리기' : '경로 목록 내리기'}
-              onClick={() => setSheetMode((m) => (m === 'min' ? 'mid' : 'min'))}>
+              onClick={() => setSheetH((h) => (h != null && h < 210 ? null : SHEET_MIN))}>
               <i />
             </button>
           )}
@@ -1131,7 +1129,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
                 const st = open ? stepsOf(r) : null;
                 return (
                   <div key={r.key} className={`rcard ${on ? 'on' : ''}`}>
-                    <button className="rc-main" onClick={() => { setSelId(r.key); setOpenId(open ? null : r.key); if (sheetMode === 'min') setSheetMode('mid'); }}>
+                    <button className="rc-main" onClick={() => { setSelId(r.key); setOpenId(open ? null : r.key); if (sheetMode === 'min') setSheetH(null); }}>
                       <div className="rc-top">
                         <span className="rc-min"><b>{r.min}</b>분</span>
                         <span className="rc-meta"><b>{hhmm(r.arrive)} 도착</b><small>{r.vname} · 환승 {r.transfers}회 · 걷기 {r.walkM >= 1000 ? `${(r.walkM / 1000).toFixed(1)}km` : `${r.walkM}m`}</small></span>
