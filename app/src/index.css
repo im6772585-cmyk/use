@@ -765,3 +765,6 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .cb-subway { background: #15273E; color: #DDF159; }
 .rc-top { margin-bottom: 12px; }
 .pf-seg button { text-align: center !important; justify-content: center !important; display: block !important; }
+.pref-home { flex: none; height: 40px; padding: 0 12px; border: none; border-radius: 20px; background: #EEF6C4; color: #305A52; font-weight: 800; font-size: 14px;
+  display: flex; align-items: center; gap: 5px; box-shadow: 0 2px 8px rgba(21,39,62,.10); font-family: inherit; }
+.pf-skip { display: block; width: 100%; margin-top: 8px; height: 44px; border: none; background: transparent; color: #305A52; font-weight: 800; font-size: 14px; font-family: inherit; }

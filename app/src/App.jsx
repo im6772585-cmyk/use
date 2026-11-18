@@ -524,7 +524,7 @@ function Splash({ onDone }) {
 }
 
 // ---------- 홈 (지도) ----------
-function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
+function Home({ loc, go, band, setBand, rent, openReturn, pick, openPrefs }) {
   const el = useRef(null);
   const mapRef = useMap(el, loc.pos);
   const [follow, setFollow] = useState(true);
@@ -573,6 +573,7 @@ function Home({ loc, go, band, setBand, rent, openReturn, pick }) {
         </button>
         <div className="home-sub">
           <WeatherChip pos={loc.pos} />
+          <button className="pref-home" onClick={openPrefs} aria-label="내 길 취향"><Icon svg={slidersSvg('#305A52')} size={16} />취향</button>
           <button className={showCong ? 'cong-toggle on' : 'cong-toggle'} onClick={() => setShowCong((v) => !v)} aria-pressed={showCong}>{showCong ? '혼잡 구역 끄기' : '혼잡 구역 보기'}</button>
         </div>
         {showCong && <BandBar band={band} setBand={setBand} compact />}
@@ -688,7 +689,7 @@ const PfRow = ({ ico, title, desc, children, right }) => (
     {children}
   </div>
 );
-function PrefsSheet({ prefs, onClose, onSave }) {
+function PrefsSheet({ prefs, onClose, onSave, first = false }) {
   const [d, setD] = useState(prefs);
   const set = (k, v) => setD((o) => ({ ...o, [k]: v }));
   const Toggle = ({ k }) => PfToggle({ d, set, k });
@@ -700,7 +701,7 @@ function PrefsSheet({ prefs, onClose, onSave }) {
       <div className="modal pref-modal" onClick={(e) => e.stopPropagation()}>
         <i className="sheet-grip" />
         <div className="modal-head"><div><small className="pf-kicker">내게 딱 맞는 타슈길</small><b>어떤 길이 편하세요?</b></div><button className="x" onClick={onClose} aria-label="닫기">×</button></div>
-        <p className="pf-lead">고른 취향을 반영해 조금 더 편한 경로를 먼저 보여 드려요.</p>
+        <p className="pf-lead">{first ? '처음 오셨네요! 취향을 골라 두면 길찾기에서 나에게 맞는 경로를 먼저 보여 드려요. 나중에 홈의 ‘취향’ 버튼으로 바꿀 수 있어요.' : '고른 취향을 반영해 조금 더 편한 경로를 먼저 보여 드려요.'}</p>
         <div className="pf-list">
           <PfRow ico={bikeSvg(K)} title="자전거길 우선" desc="차도보다 자전거길·천변길을 먼저 찾아요" right={Toggle({ k: 'bikeway' })} />
           <PfRow ico={`<svg viewBox="0 0 24 24" fill="none" stroke="${K}" stroke-width="2.2" stroke-linecap="round"><path d="M4 20 L10 4 M14 4 L20 20 M12 8v2 M12 13v2 M12 18v2"/></svg>`} title="큰길로 가기" desc="골목보다 넓고 밝은 큰 도로 위주로 가요" right={Toggle({ k: 'bigRoad' })} />
@@ -718,6 +719,7 @@ function PrefsSheet({ prefs, onClose, onSave }) {
           </PfRow>
         </div>
         <button className="pf-save" onClick={() => onSave(d)}>이대로 좋아요</button>
+        {first && <button className="pf-skip" onClick={onClose}>기본 설정으로 시작할게요</button>}
       </div>
     </div>
   );
@@ -733,7 +735,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const [editing, setEditing] = useState(trip?.to ? null : 'to');
   const [q, setQ] = useState('');
   const [prefs, setPrefsRaw] = useState(() => { try { return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('tashu-prefs') || '{}') }; } catch { return DEFAULT_PREFS; } });
-  const setPrefs = (v) => { setPrefsRaw(v); try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); } catch { /* 저장 못 해도 이번엔 적용 */ } };
+  const setPrefs = (v) => { setPrefsRaw(v); try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 이번엔 적용 */ } };
   const [showPrefs, setShowPrefs] = useState(false);
   const [plans, setPlans] = useState(null);        // 모든 경로 목록
   const [cat, setCat] = useState('all');           // 전체 / 대중교통 / 타슈 / 연계
@@ -1230,6 +1232,15 @@ export default function App() {
   const [trip, setTrip] = useState(null);
   const [modal, setModal] = useState(null); // 'rent' | 'return'
   const rent = useRental();
+  // 처음 시작할 때 내 길 취향 묻기 (한 번 정하면 다음부터는 홈의 '내 취향' 버튼으로)
+  const [askPrefs, setAskPrefs] = useState(false);
+  const savedPrefs = () => { try { return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem('tashu-prefs') || '{}') }; } catch { return DEFAULT_PREFS; } };
+  const savePrefs = (v) => { try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 진행 */ } setAskPrefs(false); };
+  const afterSplash = useCallback(() => {
+    setScreen('home');
+    let done = false; try { done = !!localStorage.getItem('tashu-prefs-set'); } catch { /* 무시 */ }
+    if (!done) setAskPrefs(true);
+  }, []);
   const home = useCallback(() => setScreen('home'), []);
   const go = useCallback((sc) => { setCourseId(null); setTrip(null); setScreen(sc); }, []);
   const openCourse = useCallback((id) => { setCourseId(id); setTrip(null); setScreen('route'); }, []);
@@ -1237,8 +1248,9 @@ export default function App() {
   const startRent = useCallback((bike) => { rent.start(bike); setModal(null); }, [rent]);
   return (
     <div className="phone">
-      {screen === 'splash' && <Splash onDone={home} />}
-      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} rent={rent} openReturn={() => setModal('return')} pick={pick} />}
+      {screen === 'splash' && <Splash onDone={afterSplash} />}
+      {screen === 'home' && <Home loc={loc} go={go} band={band} setBand={setBand} rent={rent} openReturn={() => setModal('return')} pick={pick} openPrefs={() => setAskPrefs(true)} />}
+      {askPrefs && <PrefsSheet first prefs={savedPrefs()} onClose={() => savePrefs(savedPrefs())} onSave={savePrefs} />}
       {screen === 'route' && <RouteScreen key={`${courseId}-${trip?.from?.name}-${trip?.to?.name}`} loc={loc} back={home} band={band} setBand={setBand} initialCourse={courseId} trip={trip} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} />}
       {screen === 'badges' && <BadgeScreen back={home} openCourse={openCourse} />}
       {screen === 'my' && <MyInfo back={home} rent={rent} openRent={() => setModal('rent')} openReturn={() => setModal('return')} />}
