@@ -727,7 +727,7 @@ function PrefsSheet({ prefs, onClose, onSave, first = false }) {
 
 // 아래 시트를 손가락(또는 마우스·휠)으로 끌어서 내리고 올리기
 // 아래 시트를 손가락(또는 마우스·휠)으로 끌면, 손을 놓은 높이에서 그대로 멈춤
-const SHEET_MIN = 130;
+const SHEET_MIN = 32; // 완전히 닫으면 손잡이만 남음
 function useSheetDrag(ref, setH, enabled) {
   useEffect(() => {
     const el = ref.current; if (!el || !enabled) return;
@@ -754,7 +754,7 @@ function useSheetDrag(ref, setH, enabled) {
     };
     const end = () => {
       if (!st) return;
-      if (moved) { setH(Math.round(lastH)); suppress = true; setTimeout(() => { suppress = false; }, 50); }
+      if (moved) { setH(lastH < 80 ? SHEET_MIN : Math.round(lastH)); suppress = true; setTimeout(() => { suppress = false; }, 50); }
       el.style.transition = ''; el.classList.remove('dragging');
       st = null; moved = false;
     };
@@ -796,7 +796,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
   const setPrefs = (v) => { setPrefsRaw(v); try { localStorage.setItem('tashu-prefs', JSON.stringify(v)); localStorage.setItem('tashu-prefs-set', '1'); } catch { /* 저장 못 해도 이번엔 적용 */ } };
   const [showPrefs, setShowPrefs] = useState(false);
   const [sheetH, setSheetH] = useState(null); // 사용자가 끌어 놓은 목록 높이(px). null이면 기본 높이
-  const sheetMode = sheetH == null ? 'mid' : sheetH < 210 ? 'min' : 'free';
+  const sheetMode = sheetH == null ? 'mid' : sheetH <= SHEET_MIN + 4 ? 'closed' : sheetH < 210 ? 'min' : 'free';
   const sheetRef = useRef(null);
   const [plans, setPlans] = useState(null);        // 모든 경로 목록
   const [cat, setCat] = useState('all');           // 전체 / 대중교통 / 타슈 / 연계
@@ -1068,8 +1068,8 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
       {!editing && !guide && (
         <div ref={sheetRef} className={`sheet sh-${sheetMode}`} style={sheetH != null && !course && to ? { maxHeight: sheetH, height: sheetH } : undefined}>
           {!course && to && (
-            <button className="sheet-handle" aria-label={sheetMode === 'min' ? '경로 목록 올리기' : '경로 목록 내리기'}
-              onClick={() => setSheetH((h) => (h != null && h < 210 ? null : SHEET_MIN))}>
+            <button className="sheet-handle" aria-label={sheetMode === 'closed' ? '경로 목록 열기' : '경로 목록 닫기'}
+              onClick={() => setSheetH((h) => (h != null && h <= SHEET_MIN + 4 ? null : SHEET_MIN))}>
               <i />
             </button>
           )}

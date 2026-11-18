@@ -797,3 +797,6 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .sheet-handle { touch-action: none; }
 .screen.route .sheet { -webkit-overflow-scrolling: touch; }
 .screen.route .sheet.dragging { overflow: hidden !important; }
+/* 완전히 닫힌 목록: 손잡이만 */
+.screen.route .sheet.sh-closed { overflow: hidden !important; padding-bottom: 0 !important; }
+.sheet.sh-closed:not(.dragging) > *:not(.sheet-handle) { display: none !important; }
