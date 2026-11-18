@@ -794,3 +794,6 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .screen.route .sheet.sh-min { overflow: hidden; } .screen.route .sheet { overscroll-behavior: contain; user-select: none; }
 .sheet-handle { padding: 9px 0 7px !important; }
 .screen.route .sheet.sh-min { max-height: none; }
+.sheet-handle { touch-action: none; }
+.screen.route .sheet { -webkit-overflow-scrolling: touch; }
+.screen.route .sheet.dragging { overflow: hidden !important; }

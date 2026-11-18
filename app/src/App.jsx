@@ -739,10 +739,15 @@ function useSheetDrag(ref, setH, enabled) {
       const dy = y - st.y;
       const canDown = dy > 0 && el.scrollTop <= 0 && st.top <= 0;
       const canUp = dy < 0 && st.h < maxH() - 2;
-      if (!moved && Math.abs(dy) < 8) return;
-      if (!moved && !canDown && !canUp) { st = null; return; } // 목록 안 스크롤은 그대로
-      moved = true;
+      if (!st.armed) {
+        // 폰: 첫 움직임에서 바로 정해야 브라우저가 목록 스크롤을 먼저 시작하지 않음
+        if (dy === 0) return;
+        if (!canDown && !canUp) { st = null; return; } // 목록 안 스크롤은 그대로
+        st.armed = true;
+      }
       if (ev.cancelable) ev.preventDefault();
+      if (!moved && Math.abs(dy) < 6) return; // 살짝 떨린 건 누르기로 봄
+      moved = true;
       el.style.transition = 'none'; el.classList.add('dragging');
       lastH = Math.max(SHEET_MIN, Math.min(maxH(), st.h - dy));
       el.style.maxHeight = `${lastH}px`; el.style.height = `${lastH}px`;
