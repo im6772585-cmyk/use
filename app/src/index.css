@@ -792,3 +792,4 @@ body, .screen, .modal, .sheet { color: #15273E; }
 .rl-sort { margin: 2px 0 10px !important; }
 .rl-head { margin-bottom: 4px !important; }
 .screen.route .sheet.sh-min { overflow: hidden; } .screen.route .sheet { overscroll-behavior: contain; user-select: none; }
+.sheet-handle { padding: 9px 0 7px !important; }

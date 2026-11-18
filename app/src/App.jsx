@@ -1067,7 +1067,7 @@ function RouteScreen({ loc, back, band, setBand, initialCourse, trip, rent, open
           {!course && to && (
             <button className="sheet-handle" aria-label={sheetMode === 'min' ? '경로 목록 올리기' : '경로 목록 내리기'}
               onClick={() => setSheetMode((m) => (m === 'min' ? 'mid' : 'min'))}>
-              <i /><span>{sheetMode === 'min' ? '위로 올려서 경로 목록 보기' : '아래로 내려서 지도 크게 보기'}</span>
+              <i />
             </button>
           )}
           {won && <div className="won"><Medal id={won.id} got size={70} /><div><b>완주! {won.badge}를 받았어요</b><small>배지 화면에 모였어요.</small></div></div>}
