@@ -727,7 +727,7 @@ function PrefsSheet({ prefs, onClose, onSave, first = false }) {
 
 // 아래 시트를 손가락(또는 마우스·휠)으로 끌어서 내리고 올리기
 // 아래 시트를 손가락(또는 마우스·휠)으로 끌면, 손을 놓은 높이에서 그대로 멈춤
-const SHEET_MIN = 32; // 완전히 닫으면 손잡이만 남음
+const SHEET_MIN = 46; // 완전히 닫으면 손잡이만 남음
 function useSheetDrag(ref, setH, enabled) {
   useEffect(() => {
     const el = ref.current; if (!el || !enabled) return;

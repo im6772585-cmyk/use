@@ -800,3 +800,11 @@ body, .screen, .modal, .sheet { color: #15273E; }
 /* 완전히 닫힌 목록: 손잡이만 */
 .screen.route .sheet.sh-closed { overflow: hidden !important; padding-bottom: 0 !important; }
 .sheet.sh-closed:not(.dragging) > *:not(.sheet-handle) { display: none !important; }
+/* v15: 폰에서 손잡이가 사라지거나 카드가 눌려 줄어들지 않게 */
+@supports (height: 100dvh) { html, body, #root { height: 100dvh; } }
+.screen.route .sheet > * { flex-shrink: 0; }
+.screen.route .sheet { gap: 0 !important; padding-bottom: calc(14px + env(safe-area-inset-bottom)) !important; box-shadow: 0 -6px 18px rgba(21,39,62,.16); }
+.screen.route .sheet .rl-head, .screen.route .sheet .rl-sort { margin-top: 4px; }
+.sheet-handle { min-height: 34px; justify-content: center; }
+.sheet-handle i { width: 56px !important; height: 6px !important; background: #8F9570 !important; }
+.screen.route .sheet.sh-closed { padding-bottom: env(safe-area-inset-bottom) !important; }
